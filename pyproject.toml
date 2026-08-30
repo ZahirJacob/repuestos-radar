@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "repuestos-radar"
+dynamic = ["version"]
+description = "Market intelligence for phone repair shops: multi-source price tracking for phone spare parts and used phones."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Zahir Jacob" }]
+dependencies = [
+    "httpx",
+    "sqlalchemy",
+    "pandas",
+    "pyyaml",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9,<10",
+    "ruff>=0.16,<0.17",
+]
+
+[tool.hatch.version]
+path = "src/repuestos_radar/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/repuestos_radar"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
