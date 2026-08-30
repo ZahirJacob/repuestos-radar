@@ -4,7 +4,7 @@
 
 > 🇦🇷 [Leé esto en español](README.es.md)
 
-Market intelligence for phone repair shops: tracks prices of phone spare parts and used phones
+Market intelligence for phone repair shops: tracks prices of phone parts and used phones
 across MercadoLibre and local resellers, stores the history in Postgres, and serves a dashboard
 that answers real pricing questions.
 
@@ -35,8 +35,8 @@ leave at current prices.
 
 Prices are only as good as their sources, so every source carries trust metadata: physical address,
 Google rating, and — for MercadoLibre sellers — the seller's platform reputation. A source is only
-added after a documented vetting checklist: it must be an established business with a verifiable
-address or a strong platform reputation, public prices, and consistent stock.
+added after it passes a documented vetting checklist: it must be an established business with a
+verifiable address or a strong platform reputation, public prices, and consistent stock.
 
 Current sources:
 

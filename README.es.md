@@ -22,13 +22,13 @@ debajo del mercado, y qué margen deja una reparación a los precios de hoy.
 
 ## Cómo funciona
 
-1. **Ingesta diaria multi-fuente.** Un cron de GitHub Actions corre una vez por día y trae los
-   avisos actuales de cada búsqueda seguida — desde la API oficial de MercadoLibre (credenciales
-   OAuth de aplicación) y desde tiendas online de revendedores locales verificados.
-2. **Historial de precios en Postgres.** Cada aviso se normaliza a un esquema común y se agrega a
-   una base Postgres hosteada (Neon/Supabase, plan gratuito), armando un historial de precios en
+1. **Ingesta diaria multi-fuente.** Un cron de GitHub Actions corre una vez por día y trae las
+   publicaciones actuales de cada búsqueda seguida — desde la API oficial de MercadoLibre
+   (credenciales OAuth de aplicación) y desde tiendas online de revendedores locales verificados.
+2. **Historial de precios en Postgres.** Cada publicación se normaliza a un esquema común y se
+   agrega a una base Postgres hosteada (Neon/Supabase, plan gratuito), armando un historial de precios en
    el tiempo.
-3. **Dashboard en Streamlit.** Un dashboard en español (con selector ES/EN) muestra precios
+3. **Dashboard en Streamlit.** Un dashboard primero en español (con selector ES/EN) muestra precios
    actuales, historial y una calculadora de margen. Es público de solo lectura, salvo una página
    de administración protegida con contraseña donde el cliente gestiona la lista de seguimiento —
    las búsquedas seguidas viven en una tabla de la base, así que el cliente agrega o saca ítems
@@ -46,7 +46,7 @@ Fuentes actuales:
 
 | Fuente | Tipo | Cómo la leemos |
 | --- | --- | --- |
-| MercadoLibre | Marketplace (toda Argentina) | API oficial, credenciales OAuth |
+| MercadoLibre | Marketplace (toda Argentina) | API oficial, credenciales OAuth de aplicación |
 | Novocell (Rosario) | Tienda online de revendedor local (Wix) | Scraping respetuoso |
 | Tienda Móvil (Rosario) | Tienda online de revendedor local (WooCommerce) | Scraping respetuoso |
 
@@ -66,23 +66,23 @@ Las tiendas locales se scrapean con respeto, y esto no se negocia:
 ## Arquitectura
 
 Cada fuente es un adaptador autocontenido detrás de una interfaz común: el adaptador sabe cómo
-descargar y parsear una fuente, y emite avisos en un único esquema normalizado — **ítem, precio,
-condición, fuente, fecha**. El job de ingesta corre todos los adaptadores, junta los avisos
-normalizados y los escribe en Postgres. Todo lo que viene después (análisis, dashboard, alertas)
-solo ve el esquema normalizado, así que agregar una fuente nunca toca el resto del sistema.
+descargar y parsear una fuente, y emite publicaciones en un único esquema normalizado — **ítem,
+precio, condición, fuente, fecha**. El job de ingesta corre todos los adaptadores, junta las
+publicaciones normalizadas y las escribe en Postgres. Todo lo que viene después (análisis,
+dashboard, alertas) solo ve el esquema normalizado, así que agregar una fuente nunca toca el resto del sistema.
 
 ```
 API MercadoLibre ──┐
-Novocell (Wix) ────┼──► adaptadores por fuente ──► avisos normalizados ──► Postgres ──► dashboard
-Tienda Móvil ──────┘      (descarga + parseo)      (ítem, precio, condición,            análisis
-                                                    fuente, fecha)                      alertas
+Novocell (Wix) ────┼──► adaptadores por fuente ──► publicaciones normalizadas ──► Postgres ──► dashboard
+Tienda Móvil ──────┘      (descarga + parseo)      (ítem, precio, condición,                   análisis
+                                                    fuente, fecha)                             alertas
 ```
 
 ## Hoja de ruta
 
 - **M0 — Andamiaje** *(este PR)*: estructura del proyecto, CI, documentación.
 - **M1 — Ingesta**: adaptador de la API de MercadoLibre y de las tiendas locales, esquema
-  normalizado de avisos, escritura en Postgres.
+  normalizado de publicaciones, escritura en Postgres.
 - **M2 — Automatización diaria**: cron de GitHub Actions, manejo de errores, backoff, reportes de
   cada corrida.
 - **M3 — Capa de análisis**: consultas sobre el historial, mejor precio y tendencias, cálculo de
