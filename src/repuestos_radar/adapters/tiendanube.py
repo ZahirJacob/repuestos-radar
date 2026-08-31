@@ -58,7 +58,6 @@ _LD_JSON_RE = re.compile(
     r"<script[^>]*type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
     re.DOTALL | re.IGNORECASE,
 )
-_SITEMAP_LINE_RE = re.compile(r"^\s*sitemap:\s*(\S+)", re.IGNORECASE | re.MULTILINE)
 _LOC_RE = re.compile(r"<loc>\s*(.*?)\s*</loc>", re.DOTALL)
 _HREF_RE = re.compile(r"href=\"([^\"#?]+)")
 
@@ -117,6 +116,8 @@ class TiendanubeAdapter:
         listings: list[NormalizedListing] = []
         seen: set[str] = set()
         pages_fetched = 0
+        total_product_blocks = 0
+        budget_exhausted = False
         for category_url in allowed:
             page = 1
             while True:
@@ -126,7 +127,8 @@ class TiendanubeAdapter:
                         self.source.slug,
                         MAX_CATALOG_PAGES,
                     )
-                    return listings
+                    budget_exhausted = True
+                    break
                 response = self._http.get(category_url, params={"page": page})
                 pages_fetched += 1
                 if response.status_code != 200:
@@ -140,6 +142,7 @@ class TiendanubeAdapter:
                     )
                     break
                 page_listings, product_blocks = self._parse_products(response.text)
+                total_product_blocks += product_blocks
                 if product_blocks == 0:
                     # Zero Product blocks = past the end (or not a category
                     # page at all). Counted on blocks, not parsed listings, so
@@ -151,6 +154,18 @@ class TiendanubeAdapter:
                         seen.add(listing.external_id)
                         listings.append(listing)
                 page += 1
+            if budget_exhausted:
+                break
+        if total_product_blocks == 0:
+            # A real store whose whole crawl shows zero Product JSON-LD is
+            # almost certainly markup drift or a parser regression, not an
+            # empty store — every fetch would silently return [] otherwise.
+            logger.warning(
+                "%s: crawl completed with ZERO Product JSON-LD blocks across %d page(s); "
+                "platform markup may have changed — the empty catalog is suspect",
+                self.source.slug,
+                pages_fetched,
+            )
         return listings
 
     # --- category discovery -------------------------------------------------
@@ -169,12 +184,12 @@ class TiendanubeAdapter:
         return ordered[:_MAX_CANDIDATES]
 
     def _categories_from_sitemap(self) -> set[str]:
-        response = self._http.get(f"{self._base_root()}/robots.txt")
-        if response.status_code != 200:
-            return set()
-        sitemap_urls = [u for u in _SITEMAP_LINE_RE.findall(response.text) if "blog" not in u]
+        # Sitemap URLs come from the client's cached robots.txt parse, so
+        # robots.txt is fetched exactly once per crawl.
         candidates: set[str] = set()
-        for sitemap_url in sitemap_urls:
+        for sitemap_url in self._http.site_maps():
+            if "blog" in sitemap_url:
+                continue
             candidates |= self._category_locs(sitemap_url)
         return candidates
 
@@ -252,7 +267,11 @@ class TiendanubeAdapter:
                 return None  # not purchasable today; deliberately not "malformed"
             title = product["name"]
             currency = offers["priceCurrency"]
-            url = offers.get("url") or product.get("mainEntityOfPage", {}).get("@id")
+            # mainEntityOfPage is legally either an object carrying @id or a
+            # plain URL string; both shapes appear in the wild.
+            main_entity = product.get("mainEntityOfPage")
+            fallback_url = main_entity.get("@id") if isinstance(main_entity, dict) else main_entity
+            url = offers.get("url") or fallback_url
             if not isinstance(title, str) or not isinstance(currency, str):
                 raise TypeError("wrong-typed name/priceCurrency")
             if not isinstance(url, str) or not url:
@@ -273,7 +292,9 @@ class TiendanubeAdapter:
                 url=url,
                 fetched_at=date.today(),
             )
-        except (KeyError, TypeError, ValueError, InvalidOperation):
+        except (KeyError, TypeError, ValueError, AttributeError, InvalidOperation):
+            # AttributeError included defensively: one odd product shape must
+            # be a skipped product, never a source-wide failure.
             self._catalog_skipped += 1
             logger.warning("%s: skipping malformed product: %.120r", self.source.slug, product)
             return None

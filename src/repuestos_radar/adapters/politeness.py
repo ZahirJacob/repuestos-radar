@@ -64,6 +64,17 @@ class PoliteHttpClient:
         base path — so a shop installed in a subdirectory (e.g. a WordPress
         under /tienda/) is still governed by the site-wide rules.
         """
+        return self._load_robots().can_fetch(USER_AGENT, url)
+
+    def site_maps(self) -> list[str]:
+        """Sitemap URLs advertised by robots.txt (empty when none).
+
+        Served from the same cached robots.txt parse that `allows` uses, so
+        asking for sitemaps costs no extra request.
+        """
+        return list(self._load_robots().site_maps() or [])
+
+    def _load_robots(self) -> RobotFileParser:
         if self._robots is None:
             parser = RobotFileParser()
             split = urlsplit(self.base_url)
@@ -79,7 +90,7 @@ class PoliteHttpClient:
                 ) from exc
             parser.parse(response.text.splitlines() if response.status_code == 200 else [])
             self._robots = parser
-        return self._robots.can_fetch(USER_AGENT, url)
+        return self._robots
 
     def _request(
         self,

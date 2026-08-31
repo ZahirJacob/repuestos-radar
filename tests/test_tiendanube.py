@@ -155,6 +155,41 @@ def test_happy_path_crawls_sitemap_categories_and_parses_jsonld() -> None:
     assert all(r.url.host in {"store.example.com.ar", "cdn.example.com"} for r in store.requests)
 
 
+def test_robots_txt_is_fetched_exactly_once_per_crawl() -> None:
+    store = two_page_store()
+    make_adapter(store).fetch("modulo")
+
+    robots_requests = [r for r in store.requests if r.url.path == "/robots.txt"]
+    assert len(robots_requests) == 1  # shared between sitemap discovery and allows()
+
+
+def test_plain_string_main_entity_is_used_as_url_fallback() -> None:
+    """A Product with no offers.url and mainEntityOfPage as a plain URL string
+    (legal schema.org) must be parsed — and must never fail the whole source."""
+    adapter = make_adapter(two_page_store())
+
+    listings = adapter.fetch("cargador turbopower")
+
+    (listing,) = listings
+    assert listing.external_id == "cargador-motorola-turbopower"
+    assert listing.url == f"{BASE_URL}/productos/cargador-motorola-turbopower/"
+    assert listing.price == Decimal("18000")
+    assert adapter.skipped == 2  # the odd-but-legal shape is not "malformed"
+
+
+def test_zero_product_crawl_logs_a_loud_warning(caplog: pytest.LogCaptureFixture) -> None:
+    """A completed crawl that parses zero Product blocks anywhere is almost
+    certainly markup drift, not an empty store — it must not stay silent."""
+    store = FakeStore(pages={"/celulares": [fixture("tiendanube_empty.html")]})
+    adapter = make_adapter(store)
+
+    with caplog.at_level(logging.WARNING):
+        listings = adapter.fetch("modulo")
+
+    assert listings == []
+    assert any("ZERO Product JSON-LD" in record.message for record in caplog.records)
+
+
 def test_sku_missing_falls_back_to_url_slug() -> None:
     adapter = make_adapter(two_page_store())
     listings = adapter.fetch("g8 power")
