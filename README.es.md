@@ -131,8 +131,8 @@ pytest
 ## Correr una ingesta
 
 El runner de ingesta trae las publicaciones actuales de todas las fuentes verificadas para cada
-búsqueda seguida activa, las etiqueta con el filtro de relevancia y las guarda como capturas
-diarias. Necesita `DATABASE_URL` en el entorno (o en `.env`) — una URL de Postgres o SQLite; las
+búsqueda seguida activa, las etiqueta con el filtro de relevancia y las guarda como snapshots
+diarios. Necesita `DATABASE_URL` en el entorno (o en `.env`) — una URL de Postgres o SQLite; las
 tablas se crean automáticamente si no existen.
 
 ```bash
@@ -147,5 +147,5 @@ fuente que falla nunca aborta la corrida: se reporta y las demás siguen. El có
 cuando al menos una fuente funcionó (una corrida sin búsquedas activas es un no-op exitoso) y 1
 cuando fallaron todas las fuentes o la corrida no pudo arrancar. El progreso se commitea después
 de cada guardado por fuente/búsqueda y el almacenamiento es idempotente por día, así que volver a
-correr después de un corte es seguro. Este es el job que M2 pone en el cron diario de GitHub
+correr después de una corrida interrumpida es seguro. Este es el job que M2 pone en el cron diario de GitHub
 Actions.
