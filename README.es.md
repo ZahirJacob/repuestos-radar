@@ -154,9 +154,9 @@ correr después de una corrida interrumpida es seguro. Este es el job que corre 
 
 Un workflow de GitHub Actions ([`ingest.yml`](.github/workflows/ingest.yml)) corre la ingesta una
 vez por día a las 09:00 UTC (06:00 en Argentina) — exactamente una corrida programada por día, como
-exige la política de cortesía de scraping. El job hace checkout del repo, instala el proyecto con
-uv y corre `python -m repuestos_radar.ingest`; el reporte de la corrida queda en el log del
-workflow. Un grupo de concurrencia evita que las corridas se superpongan, el job tiene un timeout
+exige la política de cortesía de scraping. El job hace checkout del repo, instala las dependencias
+fijadas con uv (`uv sync --locked`, contra el `uv.lock` commiteado) y corre
+`python -m repuestos_radar.ingest`; el reporte de la corrida queda en el log del workflow. Un grupo de concurrencia evita que las corridas se superpongan, el job tiene un timeout
 de 15 minutos y nunca se reintenta automáticamente.
 
 Necesita el secret de repositorio `DATABASE_URL` (Settings → Secrets and variables → Actions) con

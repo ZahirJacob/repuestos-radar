@@ -141,8 +141,9 @@ after a crash is safe. This is the job the [daily automation](#daily-automation)
 
 A GitHub Actions workflow ([`ingest.yml`](.github/workflows/ingest.yml)) runs the ingestion once a
 day at 09:00 UTC (06:00 in Argentina) — exactly one scheduled run per day, as the scraping courtesy
-policy requires. The job checks out the repo, installs the project with uv, and runs
-`python -m repuestos_radar.ingest`; the run report shows up in the workflow log. A concurrency
+policy requires. The job checks out the repo, installs the locked dependencies with uv
+(`uv sync --locked`, against the committed `uv.lock`), and runs `python -m repuestos_radar.ingest`;
+the run report shows up in the workflow log. A concurrency
 group keeps runs from ever overlapping, the job times out after 15 minutes, and it is never retried
 automatically.
 
