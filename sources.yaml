@@ -1,0 +1,54 @@
+# Vetted source registry for repuestos-radar.
+#
+# Every source here passed the vetting checklist (see README, "Data sources
+# and trust policy"): established business, verifiable address, public
+# prices, consistent stock. Trust metadata is recorded per source so the
+# provenance of every price is auditable.
+#
+# MercadoLibre is deliberately absent: its search API is restricted to
+# certified partners and its site declines automated access, so per our own
+# scraping courtesy policy we do not ingest ML prices.
+
+sources:
+  - slug: novocell
+    name: Novocell
+    url: https://novocell.com.ar
+    platform: wix
+    address: Av. Pellegrini 356
+    city: Rosario
+    trust_notes: >-
+      Established phone-parts storefront with a verifiable central Rosario
+      address.
+
+  - slug: tienda-movil
+    name: Tienda Móvil
+    url: https://tiendamovilrosario.com.ar
+    platform: woocommerce
+    address: Mendoza 1209
+    city: Rosario
+    trust_notes: >-
+      Established phone-parts storefront with a verifiable central Rosario
+      address.
+
+  - slug: evophone
+    name: Evophone
+    url: https://evophone.com.ar
+    platform: woocommerce
+    address: Av. Pellegrini 4041
+    city: Rosario
+    trust_notes: >-
+      Established phone-parts storefront with a verifiable Rosario address.
+    scraping_notes: >-
+      Cloudflare filters default bot user-agents; the project's honest,
+      descriptive user-agent is accepted. If that ever stops being the case,
+      skip the source rather than work around it.
+
+  - slug: celuphone
+    name: Celuphone
+    url: https://celuphone.com.ar
+    platform: woocommerce
+    address: Santa Fe 4245
+    city: Rosario
+    trust_notes: >-
+      Registered company (CELUPHONE SAS) with a verifiable Rosario address;
+      ~4.4 stars on Google across 360+ reviews.

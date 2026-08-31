@@ -5,7 +5,7 @@
 > 🇬🇧 [Read this in English](README.md)
 
 Inteligencia de mercado para talleres de reparación de celulares: sigue los precios de repuestos y
-de celulares usados en MercadoLibre y en revendedores locales, guarda el historial en Postgres y
+de celulares usados en revendedores locales verificados, guarda el historial en Postgres y
 lo sirve en un dashboard que responde preguntas reales de precios.
 
 ## Qué es
@@ -23,10 +23,10 @@ debajo del mercado, y qué margen deja una reparación a los precios de hoy.
 ## Cómo funciona
 
 1. **Ingesta diaria multi-fuente.** Un cron de GitHub Actions corre una vez por día y trae las
-   publicaciones actuales de cada búsqueda seguida — desde la API oficial de MercadoLibre
-   (credenciales OAuth de aplicación) y desde tiendas online de revendedores locales verificados.
+   publicaciones actuales de cada búsqueda seguida desde las tiendas online de los revendedores
+   locales verificados del registro de fuentes.
 2. **Historial de precios en Postgres.** Cada publicación se normaliza a un esquema común y se
-   agrega a una base Postgres hosteada (Neon/Supabase, plan gratuito), armando un historial de precios en
+   agrega a una base Postgres hosteada (Neon, plan gratuito), armando un historial de precios en
    el tiempo.
 3. **Dashboard en Streamlit.** Un dashboard primero en español (con selector ES/EN) muestra precios
    actuales, historial y una calculadora de margen. Es público de solo lectura, salvo una página
@@ -37,18 +37,28 @@ debajo del mercado, y qué margen deja una reparación a los precios de hoy.
 ## Fuentes de datos y política de confianza
 
 Los precios valen lo que valen sus fuentes, así que cada fuente lleva metadatos de confianza:
-dirección física, calificación en Google y — para vendedores de MercadoLibre — la reputación del
-vendedor en la plataforma. Una fuente se agrega solo después de pasar una checklist de
-verificación documentada: tiene que ser un comercio establecido con dirección verificable o buena
-reputación en la plataforma, precios públicos y stock consistente.
+dirección física, calificación y reseñas en Google e inscripción societaria, cuando se conocen.
+Una fuente se agrega solo después de pasar una checklist de verificación documentada: tiene que
+ser un comercio establecido con dirección verificable, precios públicos y stock consistente. El
+registro vive en [`sources.yaml`](sources.yaml).
 
-Fuentes actuales:
+Fuentes actuales (todos son comercios establecidos de Rosario):
 
-| Fuente | Tipo | Cómo la leemos |
-| --- | --- | --- |
-| MercadoLibre | Marketplace (toda Argentina) | API oficial, credenciales OAuth de aplicación |
-| Novocell (Rosario) | Tienda online de revendedor local (Wix) | Scraping respetuoso |
-| Tienda Móvil (Rosario) | Tienda online de revendedor local (WooCommerce) | Scraping respetuoso |
+| Fuente | Plataforma | Dirección | Cómo la leemos |
+| --- | --- | --- | --- |
+| Novocell | Wix | Av. Pellegrini 356 | Scraping respetuoso |
+| Tienda Móvil | WooCommerce | Mendoza 1209 | Scraping respetuoso |
+| Evophone | WooCommerce | Av. Pellegrini 4041 | Scraping respetuoso |
+| Celuphone | WooCommerce | Santa Fe 4245 | Scraping respetuoso |
+
+**¿Por qué no MercadoLibre?** Su API de búsqueda de publicaciones está restringida a partners
+certificados (las credenciales comunes de aplicación y de usuario reciben 403), y sus páginas de
+publicaciones redirigen los requests automatizados — incluso con user-agent honesto — a un muro de
+verificación. Nuestra propia política de cortesía dice que los sitios que rechazan el acceso
+automatizado se saltean, no se les busca la vuelta, así que no incorporamos los precios de
+MercadoLibre.
+Las credenciales de ML quedan en uso solo para la API de catálogo (normalización de nombres de
+producto, en un hito posterior).
 
 ## Política de cortesía en el scraping
 
@@ -69,20 +79,21 @@ Cada fuente es un adaptador autocontenido detrás de una interfaz común: el ada
 descargar y parsear una fuente, y emite publicaciones en un único esquema normalizado — **ítem,
 precio, condición, fuente, fecha**. El job de ingesta corre todos los adaptadores, junta las
 publicaciones normalizadas y las escribe en Postgres. Todo lo que viene después (análisis,
-dashboard, alertas) solo ve el esquema normalizado, así que agregar una fuente nunca toca el resto del sistema.
+dashboard, alertas) solo ve el esquema normalizado, así que agregar una fuente nunca toca el
+resto del sistema.
 
 ```
-API MercadoLibre ──┐
-Novocell (Wix) ────┼──► adaptadores por fuente ──► publicaciones normalizadas ──► Postgres ──► dashboard
-Tienda Móvil ──────┘      (descarga + parseo)      (ítem, precio, condición,                   análisis
-                                                    fuente, fecha)                             alertas
+Novocell (Wix) ─────┐
+Tienda Móvil (Woo) ─┼──► adaptadores por fuente ──► publicaciones normalizadas ──► Postgres ──► dashboard
+Evophone (Woo) ─────┤      (descarga + parseo)      (ítem, precio, condición,                   análisis
+Celuphone (Woo) ────┘                                fuente, fecha)                             alertas
 ```
 
 ## Hoja de ruta
 
 - **M0 — Andamiaje** *(este PR)*: estructura del proyecto, CI, documentación.
-- **M1 — Ingesta**: adaptador de la API de MercadoLibre y de las tiendas locales, esquema
-  normalizado de publicaciones, escritura en Postgres.
+- **M1 — Ingesta**: adaptadores de las tiendas locales verificadas, esquema normalizado de
+  publicaciones, escritura en Postgres.
 - **M2 — Automatización diaria**: cron de GitHub Actions, manejo de errores, backoff, reportes de
   cada corrida.
 - **M3 — Capa de análisis**: consultas sobre el historial, mejor precio y tendencias, cálculo de

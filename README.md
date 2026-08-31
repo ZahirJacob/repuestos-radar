@@ -5,7 +5,7 @@
 > 🇦🇷 [Leé esto en español](README.es.md)
 
 Market intelligence for phone repair shops: tracks prices of phone parts and used phones
-across MercadoLibre and local resellers, stores the history in Postgres, and serves a dashboard
+across vetted local resellers, stores the history in Postgres, and serves a dashboard
 that answers real pricing questions.
 
 ## What it is
@@ -22,10 +22,10 @@ leave at current prices.
 ## How it works
 
 1. **Daily multi-source ingestion.** A GitHub Actions cron job runs once a day and fetches current
-   listings for every tracked search item — from the MercadoLibre official API (OAuth app
-   credentials) and from vetted local reseller storefronts.
+   listings for every tracked search item from the vetted local reseller storefronts in the
+   source registry.
 2. **Postgres price history.** Every listing is normalized into a common schema and appended to a
-   hosted Postgres database (Neon/Supabase free tier), building a price history over time.
+   hosted Postgres database (Neon free tier), building a price history over time.
 3. **Streamlit dashboard.** A Spanish-first dashboard (with an EN/ES toggle) shows current prices,
    history, and a margin calculator. It is public read-only, except for a password-protected admin
    page where the client manages the watchlist — the list of tracked search items lives in a
@@ -34,17 +34,25 @@ leave at current prices.
 ## Data sources and trust policy
 
 Prices are only as good as their sources, so every source carries trust metadata: physical address,
-Google rating, and — for MercadoLibre sellers — the seller's platform reputation. A source is only
-added after it passes a documented vetting checklist: it must be an established business with a
-verifiable address or a strong platform reputation, public prices, and consistent stock.
+Google rating and reviews, and company registration, where known. A source is only added after it
+passes a documented vetting checklist: it must be an established business with a verifiable
+address, public prices, and consistent stock. The registry lives in [`sources.yaml`](sources.yaml).
 
-Current sources:
+Current sources (all established storefronts in Rosario):
 
-| Source | Type | How we read it |
-| --- | --- | --- |
-| MercadoLibre | Marketplace (Argentina-wide) | Official API, OAuth app credentials |
-| Novocell (Rosario) | Local reseller storefront (Wix) | Polite scraping |
-| Tienda Móvil (Rosario) | Local reseller storefront (WooCommerce) | Polite scraping |
+| Source | Platform | Address | How we read it |
+| --- | --- | --- | --- |
+| Novocell | Wix | Av. Pellegrini 356 | Polite scraping |
+| Tienda Móvil | WooCommerce | Mendoza 1209 | Polite scraping |
+| Evophone | WooCommerce | Av. Pellegrini 4041 | Polite scraping |
+| Celuphone | WooCommerce | Santa Fe 4245 | Polite scraping |
+
+**Why not MercadoLibre?** Its listing-search API is restricted to certified partners (regular app
+and user credentials get 403s), and its listing pages redirect automated requests — even with an
+honest user-agent — to a verification wall. Our own courtesy policy says sites that decline
+automated access get skipped, not worked around, so we do not ingest MercadoLibre prices. The ML
+credentials stay in use only for the product-catalog API (product-name normalization, in a later
+milestone).
 
 ## Scraping courtesy policy
 
@@ -66,16 +74,16 @@ to Postgres. Everything downstream (analysis, dashboard, alerts) only ever sees 
 schema, so adding a source never touches the rest of the system.
 
 ```
-MercadoLibre API ──┐
-Novocell (Wix) ────┼──► per-source adapters ──► normalized listings ──► Postgres ──► dashboard
-Tienda Móvil ──────┘        (fetch + parse)     (item, price, condition,              analysis
-                                                 source, date)                        alerts
+Novocell (Wix) ─────┐
+Tienda Móvil (Woo) ─┼──► per-source adapters ──► normalized listings ──► Postgres ──► dashboard
+Evophone (Woo) ─────┤        (fetch + parse)     (item, price, condition,             analysis
+Celuphone (Woo) ────┘                             source, date)                       alerts
 ```
 
 ## Roadmap
 
 - **M0 — Scaffold** *(this PR)*: project layout, CI, docs.
-- **M1 — Ingestion**: MercadoLibre API adapter and storefront adapters, normalized listing schema,
+- **M1 — Ingestion**: storefront adapters for the vetted sources, normalized listing schema,
   Postgres writes.
 - **M2 — Daily automation**: GitHub Actions cron, error handling, backoff, run reports.
 - **M3 — Analysis layer**: price history queries, best-price and trend calculations, margin math.
