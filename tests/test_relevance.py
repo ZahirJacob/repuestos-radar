@@ -6,7 +6,8 @@ from decimal import Decimal
 import pytest
 
 from repuestos_radar.relevance import (
-    BLOCKLIST,
+    HARD_REJECT,
+    SOFT,
     ClassifiedListing,
     Relevance,
     apply_relevance,
@@ -41,6 +42,20 @@ def test_normalize_joins_model_number_spacing() -> None:
     assert normalize("modulo a-34") == "modulo a34"
 
 
+def test_normalize_does_not_merge_stopwords_into_numbers() -> None:
+    # L1 regression: only a SINGLE leading letter joins a number, so "de 11"
+    # keeps "11" as its own token and never invents a fake model "de11".
+    tokens = normalize("modulo de 11").split(" ")
+    assert "11" in tokens
+    assert "de11" not in tokens
+
+
+def test_query_with_bare_number_still_matches() -> None:
+    # "modulo 11" must still MATCH an "iPhone 11" title after the regex fix.
+    result = classify("modulo 11", "Modulo iPhone 11 Original")
+    assert result.relevance is Relevance.MATCH, result.reason
+
+
 # --- classify: MATCH -------------------------------------------------------
 
 
@@ -73,7 +88,7 @@ REJECT_CASES = [
     ("modulo a34", "Funda Samsung A34 Silicona Negra", "funda"),
     ("modulo a34", "Vidrio Templado Samsung A34 9D", "templado"),
     ("modulo a34", "Protector de Pantalla Samsung A34", "protector"),
-    ("modulo a34", "Cable USB Tipo C Samsung A34", "cable"),
+    ("modulo a34", "Soporte Vehicular Samsung A34", "soporte"),
     ("cargador a34", "Carcasa Trasera Samsung A34", "carcasa"),
     # Wrong model number: everything else matches but the model differs.
     ("modulo a34", "Modulo Samsung A54 Oled Con Marco", "model"),
@@ -134,9 +149,54 @@ def test_query_without_model_number_can_match() -> None:
 # --- blocklist -------------------------------------------------------------
 
 
-def test_blocklist_is_frozenset_and_tunable() -> None:
-    assert isinstance(BLOCKLIST, frozenset)
-    assert {"funda", "templado", "protector", "cable", "carcasa"} <= BLOCKLIST
+def test_blocklist_tiers_are_frozensets_and_tunable() -> None:
+    assert isinstance(HARD_REJECT, frozenset)
+    assert isinstance(SOFT, frozenset)
+    # Unambiguous accessories hard-reject.
+    assert {"funda", "templado", "protector", "carcasa", "film", "hidrogel"} <= HARD_REJECT
+    # Ambiguous terms that also name real parts must be SOFT only.
+    assert {"vidrio", "auricular", "parlante", "cable", "memoria", "chip"} <= SOFT
+    # Plural auriculares (headphones) stays hard; singular auricular (earpiece) is soft.
+    assert "auriculares" in HARD_REJECT
+    assert "auricular" in SOFT
+    # A term is never in both tiers.
+    assert not (HARD_REJECT & SOFT)
+
+
+def test_soft_term_never_hard_rejects() -> None:
+    # "Vidrio Trasero A34" (back glass — a real part) for a tapa query must
+    # not be hard-rejected even though "tapa" doesn't literally appear.
+    result = classify("tapa a34", "Vidrio Trasero Samsung A34")
+    assert result.relevance is not Relevance.REJECT
+    assert "ambiguous" in result.reason.lower()
+
+
+def test_soft_term_as_the_part_can_match() -> None:
+    # Querying for the earpiece itself: auricular is the real part, MATCH.
+    result = classify("auricular a34", "Auricular Samsung A34 Original")
+    assert result.relevance is Relevance.MATCH, result.reason
+
+
+def test_hard_reject_new_terms() -> None:
+    # New HARD_REJECT terms added in M1 actually reject.
+    for title in ("Film Hidrogel A34", "Lamina Protectora A34", "Popsocket A34"):
+        result = classify("modulo a34", title)
+        assert result.relevance is Relevance.REJECT, f"{title}: {result.reason}"
+
+
+def test_hard_reject_reason_wording() -> None:
+    hard = classify("modulo a34", "Funda Samsung A34 Silicona")
+    assert "accessory term" in hard.reason.lower()
+    soft = classify("tapa a34", "Vidrio Trasero Samsung A34")
+    assert "ambiguous term" in soft.reason.lower()
+
+
+def test_combo_listing_matches_each_model_and_rejects_others() -> None:
+    # L2: one title listing several compatible models.
+    title = "MODULO ZTE BLADE A34 / A54"
+    assert classify("a34", title).relevance is Relevance.MATCH
+    assert classify("a54", title).relevance is Relevance.MATCH
+    assert classify("a75", title).relevance is Relevance.REJECT
 
 
 # --- apply_relevance batch -------------------------------------------------
