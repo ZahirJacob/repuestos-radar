@@ -28,14 +28,19 @@ class Source:
     scraping_notes: str | None = None
 
 
-def _parse_entry(index: int, entry: dict) -> Source:
+def _parse_entry(index: int, entry: object) -> Source:
+    if not isinstance(entry, dict):
+        raise ValueError(f"source #{index}: expected a mapping, got {type(entry).__name__}")
     for field_name in _REQUIRED_FIELDS:
         value = entry.get(field_name)
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"source #{index}: missing or empty required field '{field_name}'")
+    scraping_notes = entry.get("scraping_notes")
+    if scraping_notes is not None and not isinstance(scraping_notes, str):
+        raise ValueError(f"source #{index}: 'scraping_notes' must be a string when present")
     return Source(
         **{field_name: entry[field_name].strip() for field_name in _REQUIRED_FIELDS},
-        scraping_notes=entry.get("scraping_notes", "").strip() or None,
+        scraping_notes=(scraping_notes or "").strip() or None,
     )
 
 

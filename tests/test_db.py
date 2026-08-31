@@ -1,9 +1,14 @@
 """Tests for engine/session wiring. Offline: SQLite in-memory only, no .env values."""
 
+from datetime import date
+from decimal import Decimal
+
 import pytest
 from sqlalchemy import inspect
+from sqlalchemy.exc import IntegrityError
 
 from repuestos_radar.db import get_engine, get_session_factory, init_db
+from repuestos_radar.models import Listing
 
 SQLITE_URL = "sqlite+pysqlite:///:memory:"
 
@@ -43,4 +48,26 @@ def test_session_factory_produces_working_sessions() -> None:
     factory = get_session_factory(engine)
     with factory() as session:
         assert session.get_bind() is engine
+    engine.dispose()
+
+
+def test_sqlite_engine_enforces_foreign_keys() -> None:
+    engine = get_engine(SQLITE_URL)
+    init_db(engine)
+    with get_session_factory(engine)() as session:
+        session.add(
+            Listing(
+                tracked_item_id=999,  # no such tracked item
+                source_slug="novocell",
+                external_id="abc-123",
+                title="Módulo Samsung A32",
+                price=Decimal("45000.00"),
+                currency="ARS",
+                condition="new",
+                url="https://novocell.com.ar/producto/modulo-a32",
+                fetched_date=date(2026, 8, 31),
+            )
+        )
+        with pytest.raises(IntegrityError):
+            session.commit()
     engine.dispose()

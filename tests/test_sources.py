@@ -74,6 +74,26 @@ def test_empty_required_field_is_rejected(tmp_path: Path) -> None:
         load_sources(write_yaml(tmp_path, broken))
 
 
+def test_non_mapping_entry_is_rejected(tmp_path: Path) -> None:
+    broken = VALID_YAML + "  - just-a-string\n"
+    with pytest.raises(ValueError, match="mapping"):
+        load_sources(write_yaml(tmp_path, broken))
+
+
+def test_wrong_typed_field_is_rejected(tmp_path: Path) -> None:
+    broken = VALID_YAML.replace("platform: wix", "platform: 123", 1)
+    with pytest.raises(ValueError, match="platform"):
+        load_sources(write_yaml(tmp_path, broken))
+
+
+def test_wrong_typed_scraping_notes_is_rejected(tmp_path: Path) -> None:
+    broken = VALID_YAML.replace(
+        "scraping_notes: Cloudflare filters default bot user-agents.", "scraping_notes: 5", 1
+    )
+    with pytest.raises(ValueError, match="scraping_notes"):
+        load_sources(write_yaml(tmp_path, broken))
+
+
 def test_default_path_loads_repo_registry() -> None:
     sources = load_sources()
     assert {s.slug for s in sources} == {"novocell", "tienda-movil", "evophone", "celuphone"}

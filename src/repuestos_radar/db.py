@@ -8,10 +8,16 @@ URL instead.
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from repuestos_radar.models import Base
+
+
+def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 def get_engine(database_url: str | None = None) -> Engine:
@@ -21,7 +27,12 @@ def get_engine(database_url: str | None = None) -> Engine:
         database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise RuntimeError("DATABASE_URL is not set (pass a URL or configure the environment)")
-    return create_engine(database_url)
+    engine = create_engine(database_url)
+    if engine.dialect.name == "sqlite":
+        # SQLite ships with FK enforcement off; turn it on per connection so
+        # dev/tests behave like postgres.
+        event.listen(engine, "connect", _enable_sqlite_foreign_keys)
+    return engine
 
 
 def get_session_factory(engine: Engine) -> sessionmaker[Session]:
