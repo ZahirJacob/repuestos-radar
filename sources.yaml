@@ -52,3 +52,17 @@ sources:
     trust_notes: >-
       Registered company (CELUPHONE SAS) with a verifiable Rosario address;
       ~4.4 stars on Google across 360+ reviews.
+
+  - slug: litoral-accesorios
+    name: Litoral Accesorios Celulares
+    url: https://paratucelu.com.ar/tienda
+    platform: woocommerce
+    address: Mitre 1158
+    city: Rosario
+    trust_notes: >-
+      Long-standing accessories and parts shop with a verifiable central
+      Rosario address.
+    scraping_notes: >-
+      WordPress installed under the /tienda/ subdirectory; robots.txt is
+      checked at the host root and 404s (allow-all). Catalog is accessory-
+      and battery-heavy — a "modulo" search returns few or no results.

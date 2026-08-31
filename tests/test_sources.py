@@ -109,7 +109,13 @@ def test_wrong_typed_scraping_notes_is_rejected(tmp_path: Path) -> None:
 
 def test_default_path_loads_repo_registry() -> None:
     sources = load_sources()
-    assert {s.slug for s in sources} == {"novocell", "tienda-movil", "evophone", "celuphone"}
+    assert {s.slug for s in sources} == {
+        "novocell",
+        "tienda-movil",
+        "evophone",
+        "celuphone",
+        "litoral-accesorios",
+    }
     assert all(s.city == "Rosario" for s in sources)
     evophone = next(s for s in sources if s.slug == "evophone")
     assert evophone.scraping_notes is not None
