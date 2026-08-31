@@ -54,15 +54,21 @@ def _insert_rows(session: Session, rows: list[dict]) -> int:
             f"save_listings supports the sqlite and postgresql dialects; got '{dialect}'"
         )
     inserted = 0
-    # Chunked multi-VALUES Core inserts (bound-parameter limits): per chunk,
-    # rowcount is the number actually inserted after conflicts are skipped.
+    # Chunked multi-VALUES Core inserts (bound-parameter limits). Rows actually
+    # inserted are counted via RETURNING: with ON CONFLICT DO NOTHING, RETURNING
+    # yields a row per insert that happened and nothing for skipped conflicts,
+    # on both SQLite (3.35+) and PostgreSQL. Do NOT count via .rowcount here —
+    # it is dialect-unreliable for this construct: psycopg3 reported -1
+    # ("unknown") per batch in production while SQLite returned real counts,
+    # so tests passed and the run report printed negative insert counts.
     for chunk in batched(rows, _CHUNK_SIZE):
         stmt = (
             insert_fn(Listing.__table__)
             .values(list(chunk))
             .on_conflict_do_nothing(index_elements=_SNAPSHOT_KEY)
+            .returning(Listing.__table__.c.id)
         )
-        inserted += session.execute(stmt).rowcount
+        inserted += len(session.execute(stmt).fetchall())
     return inserted
 
 

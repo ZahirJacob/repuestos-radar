@@ -143,6 +143,28 @@ def test_unsupported_dialect_raises(
         save_listings(session, tracked_item_id, [make_listing()])
 
 
+def test_conflicts_in_multiple_chunks_are_counted_correctly(
+    session: Session, tracked_item_id: int
+) -> None:
+    """Inserted counts come from RETURNING per chunk; conflicts skipped in
+    any chunk must be excluded from the count, not just the first chunk's."""
+    assert repuestos_radar.storage._CHUNK_SIZE == 500
+    save_listings(
+        session,
+        tracked_item_id,
+        [make_listing(external_id="item-10"), make_listing(external_id="item-700")],
+    )
+    session.commit()
+
+    # 750 listings span two chunks; each chunk contains one pre-stored duplicate.
+    batch = [make_listing(external_id=f"item-{n}") for n in range(750)]
+    inserted = save_listings(session, tracked_item_id, batch)
+    session.commit()
+
+    assert inserted == 748
+    assert session.scalar(select(func.count()).select_from(Listing)) == 750
+
+
 def test_batch_larger_than_one_chunk_is_fully_inserted(
     session: Session, tracked_item_id: int
 ) -> None:
