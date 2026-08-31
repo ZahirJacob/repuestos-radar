@@ -34,7 +34,7 @@ leave at current prices.
 ## Data sources and trust policy
 
 Prices are only as good as their sources, so every source carries trust metadata: physical address,
-Google rating and reviews, and company registration where known. A source is only added after it
+Google rating and reviews, and company registration, where known. A source is only added after it
 passes a documented vetting checklist: it must be an established business with a verifiable
 address, public prices, and consistent stock. The registry lives in [`sources.yaml`](sources.yaml).
 

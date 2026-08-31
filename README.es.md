@@ -37,12 +37,12 @@ debajo del mercado, y qué margen deja una reparación a los precios de hoy.
 ## Fuentes de datos y política de confianza
 
 Los precios valen lo que valen sus fuentes, así que cada fuente lleva metadatos de confianza:
-dirección física, calificación y reseñas en Google, y registro de la sociedad cuando se conoce.
+dirección física, calificación y reseñas en Google e inscripción societaria, cuando se conocen.
 Una fuente se agrega solo después de pasar una checklist de verificación documentada: tiene que
 ser un comercio establecido con dirección verificable, precios públicos y stock consistente. El
 registro vive en [`sources.yaml`](sources.yaml).
 
-Fuentes actuales (todos comercios establecidos de Rosario):
+Fuentes actuales (todos son comercios establecidos de Rosario):
 
 | Fuente | Plataforma | Dirección | Cómo la leemos |
 | --- | --- | --- | --- |
@@ -55,7 +55,8 @@ Fuentes actuales (todos comercios establecidos de Rosario):
 certificados (las credenciales comunes de aplicación y de usuario reciben 403), y sus páginas de
 publicaciones redirigen los requests automatizados — incluso con user-agent honesto — a un muro de
 verificación. Nuestra propia política de cortesía dice que los sitios que rechazan el acceso
-automatizado se saltean, no se les busca la vuelta, así que no ingerimos precios de MercadoLibre.
+automatizado se saltean, no se les busca la vuelta, así que no incorporamos los precios de
+MercadoLibre.
 Las credenciales de ML quedan en uso solo para la API de catálogo (normalización de nombres de
 producto, en un hito posterior).
 
