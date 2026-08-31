@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Numeric,
     String,
@@ -68,5 +69,10 @@ class Listing(Base):
     condition: Mapped[str] = mapped_column(String(20))
     url: Mapped[str] = mapped_column(Text)
     fetched_date: Mapped[date] = mapped_column(Date)
+    # Relevance label from the filter: match / low_confidence / reject.
+    # Nullable so listings stored before classification (or without it) are
+    # valid; the filter never drops rows, it only labels them.
+    relevance: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    relevance_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     tracked_item: Mapped[TrackedItem] = relationship(back_populates="listings")
