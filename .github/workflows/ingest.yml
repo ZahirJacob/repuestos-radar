@@ -1,0 +1,39 @@
+name: Daily ingestion
+
+on:
+  schedule:
+    # 09:00 UTC = 06:00 in Argentina (UTC-3). Courtesy policy: exactly one
+    # scheduled run per day — never add a second cron entry.
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Runs must never overlap (one polite run at a time); a manual run during the
+# scheduled one queues instead of racing it.
+concurrency:
+  group: daily-ingestion
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Third-party actions are pinned to full commit SHAs: this job holds the
+      # production DATABASE_URL secret, and a moving tag could be repointed.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.12"
+
+      - name: Install locked dependencies
+        run: uv sync --locked
+
+      - name: Run ingestion
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: uv run python -m repuestos_radar.ingest
