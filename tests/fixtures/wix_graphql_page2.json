@@ -1,0 +1,22 @@
+{
+  "data": {
+    "catalog": {
+      "category": {
+        "productsWithMetaData": {
+          "totalCount": 3,
+          "list": [
+            {
+              "id": "7fd20e11-2222-4a10-b0ce-bbbbbbbbbbbb",
+              "name": "MODULO XIAOMI REDMI NOTE 11 AMOLED",
+              "price": 55000.0,
+              "formattedPrice": "$55.000,00",
+              "currency": "ARS",
+              "urlPart": "modulo-xiaomi-redmi-note-11-amoled",
+              "isInStock": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}

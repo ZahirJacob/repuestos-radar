@@ -1,0 +1,12 @@
+{
+  "visitorId": "00000000-0000-0000-0000-000000000000",
+  "svSession": "opaque",
+  "metaSiteId": "00000000-0000-0000-0000-000000000000",
+  "apps": {
+    "1380b703-ce81-ff05-f115-39571d94dfcd": {
+      "instance": "fake-instance-token",
+      "intId": 20,
+      "accessToken": "fake-access-token"
+    }
+  }
+}

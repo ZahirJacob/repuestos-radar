@@ -1,0 +1,31 @@
+{
+  "data": {
+    "catalog": {
+      "category": {
+        "productsWithMetaData": {
+          "totalCount": 3,
+          "list": [
+            {
+              "id": "39e0e097-d169-1b15-bdba-cb0dca978ff4",
+              "name": "PLACA CARGA MOTOROLA MOTO EDGE 50 FUSION GENERICO",
+              "price": 6800.0,
+              "formattedPrice": "$6.800,00",
+              "currency": "ARS",
+              "urlPart": "placa-carga-motorola-moto-edge-50-fusion-generico",
+              "isInStock": false
+            },
+            {
+              "id": "5b1c9a44-0000-4f6e-9c1a-aaaaaaaaaaaa",
+              "name": "MODULO SAMSUNG A32 OLED C/MARCO",
+              "price": 8999.90,
+              "formattedPrice": "$8.999,90",
+              "currency": "ARS",
+              "urlPart": "modulo-samsung-a32-oled-c-marco",
+              "isInStock": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}
