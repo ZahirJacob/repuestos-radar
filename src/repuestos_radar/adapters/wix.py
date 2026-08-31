@@ -99,7 +99,10 @@ class WixAdapter:
                     self.skipped += 1
                 else:
                     listings.append(listing)
-            offset += self._per_page
+            # Advance by items actually returned, not the requested page size:
+            # a server that clamps the page size would otherwise skip listings
+            # silently. An honest full-page server behaves identically.
+            offset += len(products)
             if offset >= total or not products:
                 return listings
             if offset >= MAX_PAGES * self._per_page:

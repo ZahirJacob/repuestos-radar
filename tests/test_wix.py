@@ -162,6 +162,59 @@ def test_pagination_follows_total_count() -> None:
     assert offsets == [0, 2]
 
 
+class ClampingWixShop:
+    """A server that serves at most `served_per_page` products regardless of the
+    requested limit, slicing a fixed pool by offset — reproduces a Wix server
+    that clamps page size."""
+
+    def __init__(self, total: int, served_per_page: int):
+        self.served_per_page = served_per_page
+        self.products = [
+            {
+                "id": f"id-{n:04d}",
+                "name": f"MODULO TEST {n}",
+                "price": 1000 + n,
+                "currency": "ARS",
+                "urlPart": f"modulo-test-{n}",
+                "isInStock": True,
+            }
+            for n in range(total)
+        ]
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt":
+            return httpx.Response(200, text=ROBOTS_ALLOW)
+        if request.url.path == DYNAMICMODEL_PATH:
+            return httpx.Response(200, text=fixture_text("wix_dynamicmodel.json"))
+        variables = json.loads(request.content)["variables"]
+        offset = variables["offset"]
+        page = self.products[offset : offset + self.served_per_page]
+        body = {
+            "data": {
+                "catalog": {
+                    "category": {
+                        "productsWithMetaData": {"totalCount": len(self.products), "list": page}
+                    }
+                }
+            }
+        }
+        return httpx.Response(200, json=body)
+
+
+def test_clamped_page_size_still_yields_all_products() -> None:
+    # Adapter asks for 100/page; server clamps to 10. Advancing by items
+    # returned (not requested per_page) must lose nothing.
+    shop = ClampingWixShop(total=25, served_per_page=10)
+    adapter = WixAdapter(
+        make_source(), transport=httpx.MockTransport(shop), sleep=lambda _s: None, per_page=100
+    )
+    listings = adapter.fetch("modulo")
+
+    assert len(listings) == 25
+    assert adapter.skipped == 0
+    assert [listing.external_id for listing in listings] == [f"id-{n:04d}" for n in range(25)]
+
+
 def test_runaway_pagination_hits_cap_and_raises() -> None:
     # totalCount is 3 in the fixture, but serve a huge one page after page.
     runaway = fixture_text("wix_graphql_page1.json").replace(
