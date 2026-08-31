@@ -206,6 +206,39 @@ def test_missing_robots_txt_is_treated_as_allow() -> None:
     assert len(make_adapter(shop).fetch("modulo")) == 2
 
 
+def test_subdirectory_install_uses_root_robots_and_scoped_store_api() -> None:
+    """A shop installed under a subdirectory (e.g. WordPress under /tienda/)
+    must fetch robots.txt from the HOST root (RFC 9309) while hitting the
+    Store API under the subdirectory; a 404 robots.txt means allow-all."""
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404, text="not here")
+        if request.url.path == f"/tienda{PRODUCTS_PATH}":
+            return httpx.Response(200, json=fixture("store_api_page1.json"))
+        return httpx.Response(404, text="unknown path")
+
+    source = Source(
+        slug="subdir-test",
+        name="Subdir Test",
+        url=f"{BASE_URL}/tienda",
+        platform="woocommerce",
+        address="Calle Falsa 123",
+        city="Rosario",
+        trust_notes="Test shop under a subdirectory.",
+    )
+    adapter = WooCommerceAdapter(
+        source, transport=httpx.MockTransport(handler), sleep=lambda _s: None
+    )
+    with adapter:
+        listings = adapter.fetch("modulo")
+
+    assert len(listings) == 2
+    assert [r.url.path for r in requests] == ["/robots.txt", f"/tienda{PRODUCTS_PATH}"]
+
+
 def test_unreachable_robots_txt_is_treated_as_disallow() -> None:
     # RFC 9309 2.3.1.4: robots.txt unreachable (5xx after retries) -> full disallow.
     shop = FakeShop(pages=[fixture("store_api_page1.json")], robots=500)

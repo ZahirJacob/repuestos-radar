@@ -9,6 +9,7 @@ is final), and a cached robots.txt check where unreachable means disallow.
 
 import time
 from collections.abc import Callable
+from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
@@ -57,11 +58,17 @@ class PoliteHttpClient:
         return self._request("POST", url, json=json, headers=headers)
 
     def allows(self, url: str) -> bool:
-        """robots.txt check, fetched once and cached for the client's lifetime."""
+        """robots.txt check, fetched once and cached for the client's lifetime.
+
+        robots.txt lives at the HOST root (RFC 9309), not under the store's
+        base path — so a shop installed in a subdirectory (e.g. a WordPress
+        under /tienda/) is still governed by the site-wide rules.
+        """
         if self._robots is None:
             parser = RobotFileParser()
+            split = urlsplit(self.base_url)
             try:
-                response = self.get(f"{self.base_url}/robots.txt")
+                response = self.get(f"{split.scheme}://{split.netloc}/robots.txt")
             except AdapterError as exc:
                 # RFC 9309 2.3.1.4: robots.txt unreachable (5xx / network
                 # failure after retries) means complete disallow — which is

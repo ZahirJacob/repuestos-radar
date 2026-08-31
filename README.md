@@ -46,6 +46,7 @@ Current sources (all established storefronts in Rosario):
 | Tienda Móvil | WooCommerce | Mendoza 1209 | Polite scraping |
 | Evophone | WooCommerce | Av. Pellegrini 4041 | Polite scraping |
 | Celuphone | WooCommerce | Santa Fe 4245 | Polite scraping |
+| Litoral Accesorios | WooCommerce | Mitre 1158 | Polite scraping |
 
 **Why not MercadoLibre?** Its listing-search API is restricted to certified partners (regular app
 and user credentials get 403s), and its listing pages redirect automated requests — even with an
