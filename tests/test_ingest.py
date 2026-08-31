@@ -4,12 +4,21 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+import yaml
 from sqlalchemy import create_engine, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 import repuestos_radar.ingest
 from repuestos_radar.adapters.base import AdapterError
-from repuestos_radar.ingest import RunReport, build_adapters, format_report, main, run_ingestion
+from repuestos_radar.ingest import (
+    RunReport,
+    SourceReport,
+    build_adapters,
+    format_report,
+    main,
+    run_ingestion,
+)
 from repuestos_radar.models import Base, Listing, TrackedItem
 from repuestos_radar.schema import Condition, NormalizedListing
 from repuestos_radar.sources import Source
@@ -295,6 +304,56 @@ def test_format_report_is_grep_able(session: Session) -> None:
     assert "summary: sources_ok=1/2 fetched=2 inserted=2 already_stored=0 result=success" in text
 
 
+def test_save_failure_mid_transaction_is_rolled_back_and_next_source_persists(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A save that dirties the transaction and then fails must not poison the
+    session for the sources that follow (interpretation call 3)."""
+    add_item(session, "modulo a34")
+    shop_a, shop_b = happy_adapters()
+    real_save = repuestos_radar.ingest.save_classified_listings
+    calls: list[int] = []
+
+    def poisoned_save(sess, tracked_item_id, classified):
+        inserted = real_save(sess, tracked_item_id, classified)
+        calls.append(tracked_item_id)
+        if len(calls) == 1:  # first source only: rows are pending, then the DB "dies"
+            raise OperationalError("INSERT INTO listings ...", {}, Exception("db went away"))
+        return inserted
+
+    monkeypatch.setattr(repuestos_radar.ingest, "save_classified_listings", poisoned_save)
+
+    report = run_ingestion(session, [shop_a, shop_b])
+
+    assert report.ok
+    failed, succeeded = report.sources
+    assert failed.failure is not None
+    assert failed.failure.startswith("unexpected OperationalError:")
+    assert failed.inserted == 0
+    assert succeeded.failure is None
+    assert succeeded.inserted == 1
+    # shop-a's pending rows were rolled back; only shop-b's commit stuck.
+    assert {r.source_slug for r in session.scalars(select(Listing))} == {"shop-b"}
+    # The multi-line SQLAlchemy message is collapsed: one report line per source.
+    assert "\n" not in failed.failure
+    assert "[SQL:" in failed.failure
+    shop_a_lines = [line for line in format_report(report).splitlines() if "source=shop-a" in line]
+    assert len(shop_a_lines) == 1
+    assert "status=failed" in shop_a_lines[0]
+
+
+def test_format_report_failure_line_swaps_double_quotes() -> None:
+    report = RunReport(
+        active_items=1,
+        sources=[SourceReport(slug="s", failure='HTTP 503 "Service Unavailable"')],
+    )
+
+    text = format_report(report)
+
+    line = next(line for line in text.splitlines() if line.startswith("source=s"))
+    assert "error=\"HTTP 503 'Service Unavailable'\"" in line
+
+
 def test_build_adapters_maps_platforms() -> None:
     adapters = build_adapters([make_source("wix-shop", "wix"), make_source("woo-shop")])
     try:
@@ -309,6 +368,26 @@ def test_build_adapters_maps_platforms() -> None:
 def test_build_adapters_rejects_unknown_platform() -> None:
     with pytest.raises(ValueError, match="shopify"):
         build_adapters([make_source("woo-shop"), make_source("odd-shop", "shopify")])
+
+
+def test_build_adapters_closes_built_adapters_on_any_constructor_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    built: list[FakeAdapter] = []
+
+    def fake_adapter_for(source: Source) -> FakeAdapter:
+        if source.slug == "boom":
+            raise RuntimeError("constructor exploded")
+        adapter = FakeAdapter(source.slug)
+        built.append(adapter)
+        return adapter
+
+    monkeypatch.setattr(repuestos_radar.ingest, "adapter_for", fake_adapter_for)
+
+    with pytest.raises(RuntimeError, match="constructor exploded"):
+        build_adapters([make_source("ok-shop"), make_source("boom")])
+
+    assert [adapter.closed for adapter in built] == [True]
 
 
 def test_empty_report_ok_property() -> None:
@@ -371,6 +450,19 @@ def test_main_exit_1_on_config_error(monkeypatch, capsys) -> None:
 
     assert main() == 1
     assert "ingestion aborted (config error)" in capsys.readouterr().out
+
+
+def test_main_exit_1_on_yaml_syntax_error(monkeypatch, capsys) -> None:
+    def bad_yaml():
+        raise yaml.YAMLError("while parsing a block mapping\nfound unexpected ':'")
+
+    monkeypatch.setattr(repuestos_radar.ingest, "load_sources", bad_yaml)
+
+    assert main() == 1
+    out = capsys.readouterr().out
+    assert "ingestion aborted (config error)" in out
+    # The multi-line YAML message is collapsed onto the single abort line.
+    assert "while parsing a block mapping found unexpected ':'" in out
 
 
 def test_main_exit_1_when_database_unreachable(monkeypatch, capsys, tmp_path) -> None:
