@@ -1,0 +1,21 @@
+[
+  {
+    "id": 303,
+    "name": "Módulo Xiaomi Redmi Note 11 AMOLED",
+    "permalink": "https://shop.example.com.ar/producto/modulo-redmi-note-11/",
+    "type": "simple",
+    "is_in_stock": false,
+    "prices": {
+      "price": "5500000",
+      "regular_price": "5500000",
+      "sale_price": "5500000",
+      "currency_code": "ARS",
+      "currency_symbol": "$",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ",",
+      "currency_thousand_separator": ".",
+      "currency_prefix": "$",
+      "currency_suffix": ""
+    }
+  }
+]
