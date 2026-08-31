@@ -1,0 +1,37 @@
+name: Daily ingestion
+
+on:
+  schedule:
+    # 09:00 UTC = 06:00 in Argentina (UTC-3). Courtesy policy: exactly one
+    # scheduled run per day — never add a second cron entry.
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Runs must never overlap (one polite run at a time); a manual run during the
+# scheduled one queues instead of racing it.
+concurrency:
+  group: daily-ingestion
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run ingestion
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: uv run python -m repuestos_radar.ingest
