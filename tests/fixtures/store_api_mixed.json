@@ -1,0 +1,86 @@
+[
+  {
+    "id": 101,
+    "name": "Módulo Samsung A32 OLED con marco",
+    "permalink": "https://shop.example.com.ar/producto/modulo-samsung-a32-oled/",
+    "type": "simple",
+    "is_in_stock": true,
+    "prices": {
+      "price": "1234567",
+      "regular_price": "1234567",
+      "sale_price": "1234567",
+      "currency_code": "ARS",
+      "currency_symbol": "$",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ",",
+      "currency_thousand_separator": ".",
+      "currency_prefix": "$",
+      "currency_suffix": ""
+    }
+  },
+  {
+    "id": 404,
+    "name": "Producto roto sin precios",
+    "permalink": "https://shop.example.com.ar/producto/roto/",
+    "type": "simple",
+    "is_in_stock": true,
+    "prices": null
+  },
+  {
+    "id": 505,
+    "name": "Producto gratis imposible",
+    "permalink": "https://shop.example.com.ar/producto/gratis/",
+    "type": "simple",
+    "is_in_stock": true,
+    "prices": {
+      "price": "0",
+      "regular_price": "0",
+      "sale_price": "0",
+      "currency_code": "ARS",
+      "currency_symbol": "$",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ",",
+      "currency_thousand_separator": ".",
+      "currency_prefix": "$",
+      "currency_suffix": ""
+    }
+  },
+  {
+    "id": 555,
+    "name": null,
+    "permalink": "https://shop.example.com.ar/producto/sin-nombre/",
+    "type": "simple",
+    "is_in_stock": true,
+    "prices": {
+      "price": "500000",
+      "regular_price": "500000",
+      "sale_price": "500000",
+      "currency_code": "ARS",
+      "currency_symbol": "$",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ",",
+      "currency_thousand_separator": ".",
+      "currency_prefix": "$",
+      "currency_suffix": ""
+    }
+  },
+  {
+    "id": 606,
+    "name": "Batería Motorola G8 Power JK50",
+    "permalink": "https://shop.example.com.ar/producto/bateria-moto-g8-power/",
+    "type": "simple",
+    "is_in_stock": true,
+    "prices": {
+      "price": "899900",
+      "regular_price": "899900",
+      "sale_price": "899900",
+      "currency_code": "ARS",
+      "currency_symbol": "$",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ",",
+      "currency_thousand_separator": ".",
+      "currency_prefix": "$",
+      "currency_suffix": ""
+    }
+  }
+]

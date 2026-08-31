@@ -1,0 +1,40 @@
+[
+  {
+    "id": 701,
+    "name": "Modulo Samsung A10 Original Con Marco",
+    "permalink": "https://shop.example.com.ar/producto/modulo-samsung-a10/",
+    "type": "simple",
+    "is_in_stock": true,
+    "prices": {
+      "price": "19625",
+      "regular_price": "19625",
+      "sale_price": "19625",
+      "currency_code": "ARS",
+      "currency_symbol": "$",
+      "currency_minor_unit": 0,
+      "currency_decimal_separator": ",",
+      "currency_thousand_separator": ".",
+      "currency_prefix": "$",
+      "currency_suffix": ""
+    }
+  },
+  {
+    "id": 702,
+    "name": "Módulo importado precio en dinares",
+    "permalink": "https://shop.example.com.ar/producto/modulo-importado/",
+    "type": "simple",
+    "is_in_stock": true,
+    "prices": {
+      "price": "1234567",
+      "regular_price": "1234567",
+      "sale_price": "1234567",
+      "currency_code": "BHD",
+      "currency_symbol": "BD",
+      "currency_minor_unit": 3,
+      "currency_decimal_separator": ".",
+      "currency_thousand_separator": ",",
+      "currency_prefix": "BD",
+      "currency_suffix": ""
+    }
+  }
+]
