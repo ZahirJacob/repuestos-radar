@@ -83,7 +83,7 @@ def test_one_snapshot_per_listing_per_day(session: Session) -> None:
 
     session.add(make_listing_row(item.id))
     session.commit()
-    # Same source/external_id/date: violates the daily-snapshot constraint.
+    # Same tracked item/source/external_id/date: violates the daily-snapshot constraint.
     session.add(make_listing_row(item.id, price=Decimal("46000.00")))
     with pytest.raises(IntegrityError):
         session.commit()
@@ -92,3 +92,17 @@ def test_one_snapshot_per_listing_per_day(session: Session) -> None:
     # Same listing on another day is fine.
     session.add(make_listing_row(item.id, fetched_date=date(2026, 9, 1)))
     session.commit()
+
+
+def test_same_listing_may_appear_under_two_tracked_items(session: Session) -> None:
+    first = TrackedItem(query="modulo samsung a32")
+    second = TrackedItem(query="pantalla samsung a32")
+    session.add_all([first, second])
+    session.commit()
+
+    # Two searches surfacing the same listing on the same day is not a conflict.
+    session.add_all([make_listing_row(first.id), make_listing_row(second.id)])
+    session.commit()
+
+    rows = session.scalars(select(Listing)).all()
+    assert {row.tracked_item_id for row in rows} == {first.id, second.id}

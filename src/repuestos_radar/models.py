@@ -37,6 +37,8 @@ class TrackedItem(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     query: Mapped[str] = mapped_column(Text, unique=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Stored as UTC. Note: postgres returns aware datetimes here, but sqlite
+    # (dev/tests) returns naive ones — normalize before comparing across dialects.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     listings: Mapped[list["Listing"]] = relationship(back_populates="tracked_item")
@@ -48,6 +50,7 @@ class Listing(Base):
     __tablename__ = "listings"
     __table_args__ = (
         UniqueConstraint(
+            "tracked_item_id",
             "source_slug",
             "external_id",
             "fetched_date",

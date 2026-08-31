@@ -4,9 +4,10 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
+import repuestos_radar.storage
 from repuestos_radar.models import Base, Listing, TrackedItem
 from repuestos_radar.schema import Condition, NormalizedListing
 from repuestos_radar.storage import save_listings
@@ -110,3 +111,49 @@ def test_empty_batch_is_a_no_op(session: Session, tracked_item_id: int) -> None:
     assert save_listings(session, tracked_item_id, []) == 0
     session.commit()
     assert session.scalars(select(Listing)).all() == []
+
+
+def test_same_listing_under_two_tracked_items_both_persist(
+    session: Session, tracked_item_id: int
+) -> None:
+    other = TrackedItem(query="pantalla samsung a32")
+    session.add(other)
+    session.commit()
+
+    assert save_listings(session, tracked_item_id, [make_listing()]) == 1
+    assert save_listings(session, other.id, [make_listing()]) == 1
+    session.commit()
+
+    rows = session.scalars(select(Listing)).all()
+    assert len(rows) == 2
+    assert {row.tracked_item_id for row in rows} == {tracked_item_id, other.id}
+
+    # Re-running each tracked item for the same date is still a no-op.
+    assert save_listings(session, tracked_item_id, [make_listing()]) == 0
+    assert save_listings(session, other.id, [make_listing()]) == 0
+    session.commit()
+    assert session.scalar(select(func.count()).select_from(Listing)) == 2
+
+
+def test_unsupported_dialect_raises(
+    monkeypatch: pytest.MonkeyPatch, session: Session, tracked_item_id: int
+) -> None:
+    monkeypatch.setattr(repuestos_radar.storage, "_CONFLICT_INSERTS", {})
+    with pytest.raises(NotImplementedError, match="sqlite.*postgresql|postgresql.*sqlite"):
+        save_listings(session, tracked_item_id, [make_listing()])
+
+
+def test_batch_larger_than_one_chunk_is_fully_inserted(
+    session: Session, tracked_item_id: int
+) -> None:
+    assert repuestos_radar.storage._CHUNK_SIZE < 750
+    save_listings(session, tracked_item_id, [make_listing(external_id="item-0")])
+    session.commit()
+
+    # 750 listings spanning multiple chunks, the first of which is a duplicate.
+    batch = [make_listing(external_id=f"item-{n}") for n in range(750)]
+    inserted = save_listings(session, tracked_item_id, batch)
+    session.commit()
+
+    assert inserted == 749
+    assert session.scalar(select(func.count()).select_from(Listing)) == 750
