@@ -50,6 +50,7 @@ Fuentes actuales (todos son comercios establecidos de Rosario):
 | Tienda Móvil | WooCommerce | Mendoza 1209 | Scraping respetuoso |
 | Evophone | WooCommerce | Av. Pellegrini 4041 | Scraping respetuoso |
 | Celuphone | WooCommerce | Santa Fe 4245 | Scraping respetuoso |
+| Litoral Accesorios | WooCommerce | Mitre 1158 | Scraping respetuoso |
 
 **¿Por qué no MercadoLibre?** Su API de búsqueda de publicaciones está restringida a partners
 certificados (las credenciales comunes de aplicación y de usuario reciben 403), y sus páginas de
