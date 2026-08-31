@@ -1,0 +1,57 @@
+{
+  "data": {
+    "catalog": {
+      "category": {
+        "productsWithMetaData": {
+          "totalCount": 5,
+          "list": [
+            {
+              "id": "39e0e097-d169-1b15-bdba-cb0dca978ff4",
+              "name": "PLACA CARGA MOTOROLA MOTO EDGE 50 FUSION GENERICO",
+              "price": 6800.0,
+              "formattedPrice": "$6.800,00",
+              "currency": "ARS",
+              "urlPart": "placa-carga-motorola-moto-edge-50-fusion-generico",
+              "isInStock": false
+            },
+            {
+              "id": "1111aaaa-0000-0000-0000-000000000001",
+              "name": null,
+              "price": 1200.0,
+              "formattedPrice": "$1.200,00",
+              "currency": "ARS",
+              "urlPart": "producto-sin-nombre",
+              "isInStock": true
+            },
+            {
+              "id": "1111aaaa-0000-0000-0000-000000000002",
+              "name": "PRODUCTO GRATIS IMPOSIBLE",
+              "price": 0.0,
+              "formattedPrice": "$0,00",
+              "currency": "ARS",
+              "urlPart": "producto-gratis",
+              "isInStock": true
+            },
+            {
+              "id": "1111aaaa-0000-0000-0000-000000000003",
+              "name": "PRODUCTO SIN URL",
+              "price": 3500.0,
+              "formattedPrice": "$3.500,00",
+              "currency": "ARS",
+              "isInStock": true
+            },
+            {
+              "id": "1111aaaa-0000-0000-0000-000000000004",
+              "name": "PRODUCTO SIN PRECIO",
+              "price": null,
+              "formattedPrice": "",
+              "currency": "ARS",
+              "urlPart": "producto-sin-precio",
+              "isInStock": true
+            }
+          ]
+        }
+      }
+    }
+  }
+}

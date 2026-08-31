@@ -232,8 +232,8 @@ def test_context_manager_closes_client() -> None:
     shop = FakeShop(pages=[fixture("store_api_page1.json")])
     with make_adapter(shop) as adapter:
         adapter.fetch("modulo")
-        assert not adapter._client.is_closed
-    assert adapter._client.is_closed
+        assert not adapter._http._client.is_closed
+    assert adapter._http._client.is_closed
 
 
 def test_robots_txt_is_fetched_once_and_cached() -> None:
@@ -270,4 +270,4 @@ def test_courtesy_delay_between_successive_requests() -> None:
 def test_timeout_is_15_seconds() -> None:
     shop = FakeShop(pages=[[]])
     adapter = make_adapter(shop)
-    assert adapter._client.timeout == httpx.Timeout(15.0)
+    assert adapter._http._client.timeout == httpx.Timeout(15.0)
