@@ -24,6 +24,7 @@ from collections.abc import Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 
+import yaml
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -69,16 +70,26 @@ class RunReport:
 
 def build_adapters(sources: Sequence[Source]) -> list[Adapter]:
     """One adapter per source. An unknown platform is a config error: raise
-    ValueError before any fetching, closing whatever was already built."""
+    ValueError before any fetching. On any constructor failure, whatever was
+    already built is closed so no HTTP client leaks."""
     adapters: list[Adapter] = []
     try:
         for source in sources:
             adapters.append(adapter_for(source))
-    except ValueError:
+    except BaseException:
         for adapter in adapters:
             adapter.close()
         raise
     return adapters
+
+
+def _one_line(exc: BaseException) -> str:
+    """Collapse an exception message to a single line.
+
+    SQLAlchemy error strings span several lines (``[SQL: ...]`` and a docs
+    link); the report format promises one line per source.
+    """
+    return " ".join(str(exc).split())
 
 
 def _count_relevance(report: SourceReport, classified: list[ClassifiedListing]) -> None:
@@ -117,11 +128,11 @@ def run_ingestion(session: Session, adapters: Sequence[Adapter]) -> RunReport:
                 session.commit()
             except AdapterError as exc:
                 session.rollback()
-                source_report.failure = str(exc)
+                source_report.failure = _one_line(exc)
                 break
             except Exception as exc:  # unexpected: isolate it like an AdapterError
                 session.rollback()
-                source_report.failure = f"unexpected {type(exc).__name__}: {exc}"
+                source_report.failure = f"unexpected {type(exc).__name__}: {_one_line(exc)}"
                 break
             source_report.items_queried += 1
             source_report.listings_fetched += len(listings)
@@ -150,7 +161,10 @@ def format_report(report: RunReport) -> str:
         if s.failure is None:
             line += " status=ok"
         else:
-            line += f' status=failed error="{s.failure}"'
+            # Failure messages are collapsed to one line when recorded; swap
+            # double quotes for single so the error="..." field stays parseable.
+            error_text = s.failure.replace('"', "'")
+            line += f' status=failed error="{error_text}"'
         lines.append(line)
     ok_count = sum(1 for s in report.sources if s.failure is None)
     lines.append(
@@ -168,8 +182,8 @@ def main() -> int:
     try:
         sources = load_sources()
         adapters = build_adapters(sources)
-    except (ValueError, OSError) as exc:
-        print(f"ingestion aborted (config error): {exc}")
+    except (ValueError, OSError, yaml.YAMLError) as exc:
+        print(f"ingestion aborted (config error): {_one_line(exc)}")
         return 1
     try:
         with ExitStack() as stack:
@@ -180,7 +194,7 @@ def main() -> int:
             with get_session_factory(engine)() as session:
                 report = run_ingestion(session, adapters)
     except (RuntimeError, SQLAlchemyError) as exc:
-        print(f"ingestion aborted (database error): {exc}")
+        print(f"ingestion aborted (database error): {_one_line(exc)}")
         return 1
     print(format_report(report))
     return 0 if report.ok else 1
