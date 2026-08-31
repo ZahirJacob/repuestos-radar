@@ -38,7 +38,7 @@ Google rating and reviews, and company registration, where known. A source is on
 passes a documented vetting checklist: it must be an established business with a verifiable
 address, public prices, and consistent stock. The registry lives in [`sources.yaml`](sources.yaml).
 
-Current sources (all established storefronts in Rosario):
+Current sources (established storefronts, in Rosario unless noted):
 
 | Source | Platform | Address | How we read it |
 | --- | --- | --- | --- |
@@ -47,6 +47,13 @@ Current sources (all established storefronts in Rosario):
 | Evophone | WooCommerce | Av. Pellegrini 4041 | Polite scraping |
 | Celuphone | WooCommerce | Santa Fe 4245 | Polite scraping |
 | Litoral Accesorios | WooCommerce | Mitre 1158 | Polite scraping |
+| MD Repuestos Originales | Tiendanube | Drysdale 5596, Carapachay — Vicente López (BA) | Polite scraping |
+| GoFix | Tiendanube | Av. Avelino Rolón 217 — CABA | Polite scraping |
+| One Store | Tiendanube | San Martín 1198 — Mendoza | Polite scraping |
+
+Tiendanube stores expose no public JSON API and their search paths are robots-disallowed, so the
+adapter politely crawls their category pages (schema.org JSON-LD) once per daily run instead of
+searching.
 
 **Why not MercadoLibre?** Its listing-search API is restricted to certified partners (regular app
 and user credentials get 403s), and its listing pages redirect automated requests — even with an

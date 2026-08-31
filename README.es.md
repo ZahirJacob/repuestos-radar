@@ -42,7 +42,7 @@ Una fuente se agrega solo después de pasar una checklist de verificación docum
 ser un comercio establecido con dirección verificable, precios públicos y stock consistente. El
 registro vive en [`sources.yaml`](sources.yaml).
 
-Fuentes actuales (todos son comercios establecidos de Rosario):
+Fuentes actuales (comercios establecidos, de Rosario salvo que se indique otra ciudad):
 
 | Fuente | Plataforma | Dirección | Cómo la leemos |
 | --- | --- | --- | --- |
@@ -51,6 +51,13 @@ Fuentes actuales (todos son comercios establecidos de Rosario):
 | Evophone | WooCommerce | Av. Pellegrini 4041 | Scraping respetuoso |
 | Celuphone | WooCommerce | Santa Fe 4245 | Scraping respetuoso |
 | Litoral Accesorios | WooCommerce | Mitre 1158 | Scraping respetuoso |
+| MD Repuestos Originales | Tiendanube | Drysdale 5596, Carapachay — Vicente López (BA) | Scraping respetuoso |
+| GoFix | Tiendanube | Av. Avelino Rolón 217 — CABA | Scraping respetuoso |
+| One Store | Tiendanube | San Martín 1198 — Mendoza | Scraping respetuoso |
+
+Las tiendas en Tiendanube no exponen una API JSON pública y sus rutas de búsqueda están
+prohibidas por robots.txt, así que el adaptador recorre con respeto sus páginas de categoría
+(JSON-LD de schema.org) una vez por corrida diaria en vez de buscar.
 
 **¿Por qué no MercadoLibre?** Su API de búsqueda de publicaciones está restringida a partners
 certificados (las credenciales comunes de aplicación y de usuario reciben 403), y sus páginas de
