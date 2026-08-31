@@ -154,3 +154,19 @@ secret.
 
 To trigger a run manually: Actions → "Daily ingestion" → "Run workflow", or
 `gh workflow run ingest.yml`.
+
+## Managing tracked items
+
+Until the dashboard's admin page exists (M4), the watchlist is managed with a small dev CLI (same
+`DATABASE_URL` contract as the runner):
+
+```bash
+python -m repuestos_radar.tracked add "modulo samsung a34"
+python -m repuestos_radar.tracked list
+python -m repuestos_radar.tracked pause 3
+python -m repuestos_radar.tracked resume 3
+```
+
+`add` on an already-tracked query says so instead of failing, and reactivates the item if it was
+paused. Items are paused rather than deleted: a paused item keeps its price history and is simply
+skipped by the daily ingestion.

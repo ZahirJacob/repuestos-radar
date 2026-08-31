@@ -166,3 +166,19 @@ arregla agregando el secret.
 
 Para disparar una corrida a mano: Actions → "Daily ingestion" → "Run workflow", o
 `gh workflow run ingest.yml`.
+
+## Gestionar las búsquedas seguidas
+
+Hasta que exista la página de administración del dashboard (M4), la lista de seguimiento se
+gestiona con una pequeña CLI de desarrollo (mismo contrato de `DATABASE_URL` que el runner):
+
+```bash
+python -m repuestos_radar.tracked add "modulo samsung a34"
+python -m repuestos_radar.tracked list
+python -m repuestos_radar.tracked pause 3
+python -m repuestos_radar.tracked resume 3
+```
+
+`add` con una búsqueda ya seguida lo avisa en vez de fallar, y reactiva el ítem si estaba
+pausado. Los ítems se pausan, no se borran: un ítem pausado conserva su historial de precios y
+simplemente queda afuera de la ingesta diaria.
