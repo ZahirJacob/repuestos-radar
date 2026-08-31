@@ -66,3 +66,59 @@ sources:
       WordPress installed under the /tienda/ subdirectory; robots.txt is
       checked at the host root and 404s (allow-all). Catalog is accessory-
       and battery-heavy — a "modulo" search returns few or no results.
+
+  - slug: mdrepuestos
+    name: MD Repuestos Originales
+    url: https://www.mdrepuestosoriginales.com.ar
+    platform: tiendanube
+    address: Drysdale 5596, Carapachay
+    city: Vicente López (Buenos Aires)
+    trust_notes: >-
+      Movimundo SRL, official Motorola distributor for Argentina
+      (CUIT 23-35983719-4), with a verifiable address in Carapachay,
+      Vicente López. Ships nationwide.
+    scraping_notes: >-
+      Tiendanube storefront behind Cloudflare; the honest user-agent is
+      accepted today from residential IPs, but datacenter IPs (GitHub
+      Actions) carry a medium risk of 403s — if that happens, skip the
+      source rather than work around it. No public JSON API and /search/ is
+      robots-disallowed platform-wide, so the adapter crawls category pages
+      (JSON-LD) instead of searching.
+
+  - slug: gofix
+    name: GoFix
+    url: https://gofix.com.ar
+    platform: tiendanube
+    address: Av. Avelino Rolón 217
+    city: CABA
+    trust_notes: >-
+      Repair and refurbished-phone chain with ~10 branches in and around
+      CABA; ~4.6 stars on Google across 500+ reviews; CUIT 20-29151689-1.
+      Sells refurbished phones only — no spare parts, so this source feeds
+      the used-phone side of the tracker.
+    scraping_notes: >-
+      Tiendanube storefront behind Cloudflare; the honest user-agent is
+      accepted today from residential IPs, but datacenter IPs (GitHub
+      Actions) carry a medium risk of 403s — if that happens, skip the
+      source rather than work around it. No public JSON API and /search/ is
+      robots-disallowed platform-wide, so the adapter crawls category pages
+      (JSON-LD) instead of searching.
+
+  - slug: onestore
+    name: One Store
+    url: https://www.onestore.com.ar
+    platform: tiendanube
+    address: San Martín 1198
+    city: Mendoza
+    trust_notes: >-
+      Mendoza retail chain with 5 branches; refurbished and new phones,
+      ships nationwide via Correo Argentino/OCA/Andreani. Thinner legal
+      footprint than the other sources — no CUIT found during vetting —
+      so treat its prices as reference rather than gospel.
+    scraping_notes: >-
+      Tiendanube storefront behind Cloudflare; the honest user-agent is
+      accepted today from residential IPs, but datacenter IPs (GitHub
+      Actions) carry a medium risk of 403s — if that happens, skip the
+      source rather than work around it. No public JSON API and /search/ is
+      robots-disallowed platform-wide, so the adapter crawls category pages
+      (JSON-LD) instead of searching.

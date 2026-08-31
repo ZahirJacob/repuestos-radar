@@ -115,7 +115,16 @@ def test_default_path_loads_repo_registry() -> None:
         "evophone",
         "celuphone",
         "litoral-accesorios",
+        "mdrepuestos",
+        "gofix",
+        "onestore",
     }
-    assert all(s.city == "Rosario" for s in sources)
+    rosario = [s for s in sources if s.platform in {"wix", "woocommerce"}]
+    assert all(s.city == "Rosario" for s in rosario)
     evophone = next(s for s in sources if s.slug == "evophone")
     assert evophone.scraping_notes is not None
+    # Every Tiendanube store carries the Cloudflare/no-search caveat.
+    for source in sources:
+        if source.platform == "tiendanube":
+            assert source.scraping_notes is not None
+            assert "Cloudflare" in source.scraping_notes
