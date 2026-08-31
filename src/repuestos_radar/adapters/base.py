@@ -30,7 +30,15 @@ USER_AGENT = "repuestos-radar/0.1 (+https://github.com/ZahirJacob/repuestos-rada
 
 
 class AdapterError(Exception):
-    """A source could not be fetched this run (network, HTTP, robots, or parse failure)."""
+    """A source could not be fetched this run (network, HTTP, robots, or parse failure).
+
+    Carries the source ``slug`` so per-source failure reporting can attribute
+    it without parsing the message.
+    """
+
+    def __init__(self, message: str, *, slug: str | None = None) -> None:
+        super().__init__(message)
+        self.slug = slug
 
 
 @runtime_checkable
@@ -43,6 +51,8 @@ class Adapter(Protocol):
     """
 
     source: Source
+    skipped: int
+    """Products skipped as malformed during the most recent fetch."""
 
     def fetch(self, query: str) -> list[NormalizedListing]:
         """Return current listings for one search query, normalized."""

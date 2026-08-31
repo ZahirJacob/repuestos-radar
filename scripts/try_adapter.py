@@ -20,17 +20,19 @@ def main() -> int:
         print(f"unknown source slug '{slug}'")
         return 2
 
-    adapter = adapter_for(source)
-    try:
-        listings = adapter.fetch(query)
-    except AdapterError as error:
-        print(f"{slug}: UNAVAILABLE — {error}")
-        return 1
+    with adapter_for(source) as adapter:
+        try:
+            listings = adapter.fetch(query)
+        except AdapterError as error:
+            print(f"{slug}: UNAVAILABLE — {error}")
+            return 1
 
-    print(f"{slug}: {len(listings)} listings for '{query}' (skipped {adapter.skipped} malformed)")
-    for listing in listings[:3]:
-        print(f"  [{listing.external_id}] {listing.title}")
-        print(f"      {listing.price} {listing.currency} — {listing.url}")
+        print(
+            f"{slug}: {len(listings)} listings for '{query}' (skipped {adapter.skipped} malformed)"
+        )
+        for listing in listings[:3]:
+            print(f"  [{listing.external_id}] {listing.title}")
+            print(f"      {listing.price} {listing.currency} — {listing.url}")
     return 0
 
 

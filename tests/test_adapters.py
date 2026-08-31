@@ -29,7 +29,10 @@ def test_factory_returns_woocommerce_adapter() -> None:
 
 def test_woocommerce_adapter_satisfies_the_contract() -> None:
     adapter = adapter_for(make_source("woocommerce"))
+    # Note: runtime_checkable isinstance only proves the attributes/methods
+    # exist (source, skipped, fetch), not their signatures or types.
     assert isinstance(adapter, Adapter)
+    assert adapter.skipped == 0
 
 
 def test_unsupported_platform_raises() -> None:

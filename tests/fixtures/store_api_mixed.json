@@ -46,6 +46,25 @@
     }
   },
   {
+    "id": 555,
+    "name": null,
+    "permalink": "https://shop.example.com.ar/producto/sin-nombre/",
+    "type": "simple",
+    "is_in_stock": true,
+    "prices": {
+      "price": "500000",
+      "regular_price": "500000",
+      "sale_price": "500000",
+      "currency_code": "ARS",
+      "currency_symbol": "$",
+      "currency_minor_unit": 2,
+      "currency_decimal_separator": ",",
+      "currency_thousand_separator": ".",
+      "currency_prefix": "$",
+      "currency_suffix": ""
+    }
+  },
+  {
     "id": 606,
     "name": "Batería Motorola G8 Power JK50",
     "permalink": "https://shop.example.com.ar/producto/bateria-moto-g8-power/",

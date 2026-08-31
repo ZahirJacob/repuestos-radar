@@ -38,11 +38,24 @@ def fixture(name: str) -> list:
 
 
 class FakeShop:
-    """MockTransport handler that serves robots.txt and Store API pages."""
+    """MockTransport handler that serves robots.txt and Store API pages.
 
-    def __init__(self, pages: list[object], robots: str | None = ROBOTS_ALLOW):
+    ``robots`` may be a rules string, None (404), or an int status code.
+    ``ignore_page`` simulates a server that serves page 1 regardless of the
+    ``page`` param; ``total_pages`` adds an X-WP-TotalPages header.
+    """
+
+    def __init__(
+        self,
+        pages: list[object],
+        robots: str | int | None = ROBOTS_ALLOW,
+        ignore_page: bool = False,
+        total_pages: int | None = None,
+    ):
         self.pages = pages
         self.robots = robots
+        self.ignore_page = ignore_page
+        self.total_pages = total_pages
         self.requests: list[httpx.Request] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
@@ -50,13 +63,18 @@ class FakeShop:
         if request.url.path == "/robots.txt":
             if self.robots is None:
                 return httpx.Response(404, text="not here")
+            if isinstance(self.robots, int):
+                return httpx.Response(self.robots, text="robots error")
             return httpx.Response(200, text=self.robots)
         if request.url.path == PRODUCTS_PATH:
-            page = int(request.url.params.get("page", "1"))
+            page = 1 if self.ignore_page else int(request.url.params.get("page", "1"))
             body = self.pages[min(page, len(self.pages)) - 1]
             if isinstance(body, int):
                 return httpx.Response(body, text="error")
-            return httpx.Response(200, json=body)
+            headers = {}
+            if self.total_pages is not None:
+                headers["X-WP-TotalPages"] = str(self.total_pages)
+            return httpx.Response(200, json=body, headers=headers)
         return httpx.Response(404, text="unknown path")
 
     @property
@@ -115,7 +133,37 @@ def test_malformed_products_are_skipped_and_counted() -> None:
     listings = adapter.fetch("modulo")
 
     assert [listing.external_id for listing in listings] == ["101", "606"]
-    assert adapter.skipped == 2  # null prices + zero price
+    assert adapter.skipped == 3  # null prices + zero price + null name
+    assert all(listing.title != "None" for listing in listings)
+
+
+def test_minor_unit_zero_and_three_convert_exactly() -> None:
+    shop = FakeShop(pages=[fixture("store_api_minor_units.json")])
+    listings = make_adapter(shop).fetch("modulo")
+
+    # The real shops exercise minor_unit=0 (whole-peso ARS); 3 covers e.g. fils.
+    assert listings[0].price == Decimal("19625")  # "19625", minor_unit 0
+    assert listings[1].price == Decimal("1234.567")  # "1234567", minor_unit 3
+
+
+def test_page_ignoring_server_hits_cap_and_raises() -> None:
+    # Server always returns a full page 1, whatever `page` we ask for.
+    shop = FakeShop(pages=[fixture("store_api_page1.json")], ignore_page=True)
+    adapter = make_adapter(shop, per_page=2)
+
+    with pytest.raises(AdapterError, match="page"):
+        adapter.fetch("modulo")
+
+    assert len(shop.product_requests) == 30  # the _MAX_PAGES cap, then raise
+
+
+def test_total_pages_header_short_circuits_pagination() -> None:
+    # Full pages forever, but the header says there are only 2.
+    shop = FakeShop(pages=[fixture("store_api_page1.json")], ignore_page=True, total_pages=2)
+    listings = make_adapter(shop, per_page=2).fetch("modulo")
+
+    assert len(shop.product_requests) == 2
+    assert len(listings) == 4
 
 
 def test_server_errors_retry_with_backoff_then_raise() -> None:
@@ -156,6 +204,36 @@ def test_robots_disallow_blocks_before_any_product_request() -> None:
 def test_missing_robots_txt_is_treated_as_allow() -> None:
     shop = FakeShop(pages=[fixture("store_api_page1.json")], robots=None)
     assert len(make_adapter(shop).fetch("modulo")) == 2
+
+
+def test_unreachable_robots_txt_is_treated_as_disallow() -> None:
+    # RFC 9309 2.3.1.4: robots.txt unreachable (5xx after retries) -> full disallow.
+    shop = FakeShop(pages=[fixture("store_api_page1.json")], robots=500)
+    adapter = make_adapter(shop)
+
+    with pytest.raises(AdapterError, match="robots.txt"):
+        adapter.fetch("modulo")
+
+    assert shop.product_requests == []
+
+
+def test_adapter_error_carries_slug_and_cause() -> None:
+    shop = FakeShop(pages=[500])
+    adapter = make_adapter(shop)
+
+    with pytest.raises(AdapterError) as excinfo:
+        adapter.fetch("modulo")
+
+    assert excinfo.value.slug == "shop-test"
+    assert isinstance(excinfo.value.__cause__, httpx.HTTPStatusError)
+
+
+def test_context_manager_closes_client() -> None:
+    shop = FakeShop(pages=[fixture("store_api_page1.json")])
+    with make_adapter(shop) as adapter:
+        adapter.fetch("modulo")
+        assert not adapter._client.is_closed
+    assert adapter._client.is_closed
 
 
 def test_robots_txt_is_fetched_once_and_cached() -> None:
