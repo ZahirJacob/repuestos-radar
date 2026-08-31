@@ -48,6 +48,11 @@ def load_sources(path: Path | None = None) -> list[Source]:
     """Load and validate the source registry; raise ValueError on bad data."""
     registry_path = path or _DEFAULT_PATH
     data = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
+    if data is not None and not isinstance(data, dict):
+        raise ValueError(
+            f"{registry_path}: expected a top-level mapping with a 'sources' list, "
+            f"got {type(data).__name__}"
+        )
     entries = (data or {}).get("sources")
     if not isinstance(entries, list) or not entries:
         raise ValueError(f"{registry_path}: expected a non-empty 'sources' list")

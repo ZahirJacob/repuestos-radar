@@ -74,6 +74,19 @@ def test_empty_required_field_is_rejected(tmp_path: Path) -> None:
         load_sources(write_yaml(tmp_path, broken))
 
 
+def test_top_level_list_is_rejected_with_value_error(tmp_path: Path) -> None:
+    # A registry that forgets the 'sources:' key and starts with the list
+    # directly must raise the documented ValueError, not AttributeError.
+    top_level_list = "- slug: novocell\n  name: Novocell\n"
+    with pytest.raises(ValueError, match="top-level mapping"):
+        load_sources(write_yaml(tmp_path, top_level_list))
+
+
+def test_top_level_scalar_is_rejected_with_value_error(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="top-level mapping"):
+        load_sources(write_yaml(tmp_path, "just a string\n"))
+
+
 def test_non_mapping_entry_is_rejected(tmp_path: Path) -> None:
     broken = VALID_YAML + "  - just-a-string\n"
     with pytest.raises(ValueError, match="mapping"):

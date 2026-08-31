@@ -27,6 +27,11 @@ def get_engine(database_url: str | None = None) -> Engine:
         database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise RuntimeError("DATABASE_URL is not set (pass a URL or configure the environment)")
+    # SQLAlchemy maps the bare postgresql:// scheme to psycopg2, but this
+    # project ships psycopg (v3) — pin the driver so plain Postgres URLs
+    # (Neon's default format) work. Any other scheme passes through untouched.
+    if database_url.startswith("postgresql://"):
+        database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
     engine = create_engine(database_url)
     if engine.dialect.name == "sqlite":
         # SQLite ships with FK enforcement off; turn it on per connection so
