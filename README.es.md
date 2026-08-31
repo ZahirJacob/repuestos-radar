@@ -147,5 +147,22 @@ fuente que falla nunca aborta la corrida: se reporta y las demás siguen. El có
 cuando al menos una fuente funcionó (una corrida sin búsquedas activas es un no-op exitoso) y 1
 cuando fallaron todas las fuentes o la corrida no pudo arrancar. El progreso se commitea después
 de cada guardado por fuente/búsqueda y el almacenamiento es idempotente por día, así que volver a
-correr después de una corrida interrumpida es seguro. Este es el job que M2 pone en el cron diario de GitHub
-Actions.
+correr después de una corrida interrumpida es seguro. Este es el job que corre el workflow de
+[automatización diaria](#automatización-diaria).
+
+## Automatización diaria
+
+Un workflow de GitHub Actions ([`ingest.yml`](.github/workflows/ingest.yml)) corre la ingesta una
+vez por día a las 09:00 UTC (06:00 en Argentina) — exactamente una corrida programada por día, como
+exige la política de cortesía de scraping. El job hace checkout del repo, instala el proyecto con
+uv y corre `python -m repuestos_radar.ingest`; el reporte de la corrida queda en el log del
+workflow. Un grupo de concurrencia evita que las corridas se superpongan, el job tiene un timeout
+de 15 minutos y nunca se reintenta automáticamente.
+
+Necesita el secret de repositorio `DATABASE_URL` (Settings → Secrets and variables → Actions) con
+la cadena de conexión de Postgres. Hasta que el secret no esté configurado, las corridas abortan al
+arrancar con `ingestion aborted (database error)` y una corrida en rojo — visible, inofensivo, y se
+arregla agregando el secret.
+
+Para disparar una corrida a mano: Actions → "Daily ingestion" → "Run workflow", o
+`gh workflow run ingest.yml`.

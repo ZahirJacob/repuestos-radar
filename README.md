@@ -135,4 +135,21 @@ was unreachable — plus a summary line. A failing source never aborts the run: 
 the rest continue. The exit code is 0 when at least one source succeeded (a run with no active
 tracked items is a successful no-op) and 1 when every source failed or the run could not start.
 Progress is committed after each source/item save and storage is idempotent per day, so re-running
-after a crash is safe. This is the job M2 puts on the daily GitHub Actions schedule.
+after a crash is safe. This is the job the [daily automation](#daily-automation) workflow runs.
+
+## Daily automation
+
+A GitHub Actions workflow ([`ingest.yml`](.github/workflows/ingest.yml)) runs the ingestion once a
+day at 09:00 UTC (06:00 in Argentina) — exactly one scheduled run per day, as the scraping courtesy
+policy requires. The job checks out the repo, installs the project with uv, and runs
+`python -m repuestos_radar.ingest`; the run report shows up in the workflow log. A concurrency
+group keeps runs from ever overlapping, the job times out after 15 minutes, and it is never retried
+automatically.
+
+It needs the `DATABASE_URL` repository secret (Settings → Secrets and variables → Actions) with the
+Postgres connection string. Until the secret is set, runs abort at startup with
+`ingestion aborted (database error)` and a red run — visible, harmless, and fixed by adding the
+secret.
+
+To trigger a run manually: Actions → "Daily ingestion" → "Run workflow", or
+`gh workflow run ingest.yml`.
