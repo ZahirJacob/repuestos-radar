@@ -2,8 +2,10 @@
 
 import pytest
 from sqlalchemy import create_engine, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+import repuestos_radar.tracked
 from repuestos_radar.models import Base, TrackedItem
 from repuestos_radar.tracked import (
     ADDED,
@@ -162,6 +164,26 @@ def test_main_add_strips_and_rejects_blank_query(capsys, cli_db) -> None:
     assert all_rows(cli_db) == [("modulo a34", True)]
 
 
+def test_main_add_paused_query_prints_reactivated(capsys, cli_db) -> None:
+    assert main(["add", "modulo a34"]) == 0
+    assert main(["pause", "1"]) == 0
+    capsys.readouterr()
+
+    assert main(["add", "modulo a34"]) == 0
+
+    assert 'reactivated (was paused): id=1 active=yes query="modulo a34"' in capsys.readouterr().out
+    assert all_rows(cli_db) == [("modulo a34", True)]
+
+
+def test_main_output_swaps_double_quotes_in_query(capsys, cli_db) -> None:
+    assert main(["add", 'pantalla 5" tablet']) == 0
+
+    out = capsys.readouterr().out
+    assert 'query="pantalla 5\' tablet"' in out
+    # The row itself keeps the original query; only the display is escaped.
+    assert all_rows(cli_db) == [('pantalla 5" tablet', True)]
+
+
 def test_main_pause_unknown_id_exits_one(capsys, cli_db) -> None:
     assert main(["pause", "42"]) == 1
     assert "no tracked item with id 42" in capsys.readouterr().out
@@ -176,3 +198,19 @@ def test_main_database_unreachable_exits_one(monkeypatch, capsys, tmp_path) -> N
     monkeypatch.setenv("DATABASE_URL", f"sqlite+pysqlite:///{tmp_path / 'missing' / 'x.db'}")
     assert main(["list"]) == 1
     assert "tracked aborted (database error)" in capsys.readouterr().out
+
+
+def test_main_db_error_during_command_aborts_with_one_line(monkeypatch, capsys, cli_db) -> None:
+    """A DB failure inside a handler (e.g. at commit) must produce the same
+    one-line abort as a startup failure, not a raw traceback."""
+
+    def exploding_handler(session, args):
+        raise OperationalError("INSERT INTO tracked_items ...", {}, Exception("db went\naway"))
+
+    monkeypatch.setattr(repuestos_radar.tracked, "_cmd_list", exploding_handler)
+
+    assert main(["list"]) == 1
+    out = capsys.readouterr().out
+    assert "tracked aborted (database error)" in out
+    # The multi-line SQLAlchemy message is collapsed onto the abort line.
+    assert "db went away" in out

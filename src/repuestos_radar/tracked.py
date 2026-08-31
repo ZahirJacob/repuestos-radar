@@ -75,7 +75,10 @@ def set_active(session: Session, item_id: int, active: bool) -> tuple[TrackedIte
 
 
 def _describe(item: TrackedItem) -> str:
-    return f'id={item.id} active={"yes" if item.active else "no"} query="{item.query}"'
+    # Double quotes in the query are swapped for single so the key=value line
+    # stays parseable (same convention as the ingestion run report).
+    query_text = item.query.replace('"', "'")
+    return f'id={item.id} active={"yes" if item.active else "no"} query="{query_text}"'
 
 
 def _cmd_add(session: Session, args: argparse.Namespace) -> int:
@@ -146,14 +149,17 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point: parse arguments, open the database, run one subcommand."""
     args = _build_parser().parse_args(argv)
+    # One try around startup AND the command: a DB error during a handler
+    # (e.g. the commit) must abort with the same one-line message, not a
+    # traceback.
     try:
         engine = get_engine()
         init_db(engine)
+        with get_session_factory(engine)() as session:
+            return args.handler(session, args)
     except (RuntimeError, SQLAlchemyError) as exc:
         print(f"tracked aborted (database error): {' '.join(str(exc).split())}")
         return 1
-    with get_session_factory(engine)() as session:
-        return args.handler(session, args)
 
 
 if __name__ == "__main__":
