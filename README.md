@@ -47,9 +47,9 @@ Current sources (established storefronts, in Rosario unless noted):
 | Evophone | WooCommerce | Av. Pellegrini 4041 | Polite scraping |
 | Celuphone | WooCommerce | Santa Fe 4245 | Polite scraping |
 | Litoral Accesorios | WooCommerce | Mitre 1158 | Polite scraping |
-| MD Repuestos Originales | Tiendanube | Drysdale 5596, Carapachay — Vicente López (BA) | Polite scraping |
-| GoFix | Tiendanube | Av. Avelino Rolón 217 — CABA | Polite scraping |
-| One Store | Tiendanube | San Martín 1198 — Mendoza | Polite scraping |
+| MD Repuestos Originales | Tiendanube | Drysdale 5596, Carapachay — Vicente López, Buenos Aires | Polite scraping |
+| GoFix | Tiendanube | Av. Avelino Rolón 217 — Buenos Aires (CABA) | Polite scraping |
+| One Store | Tiendanube | San Martín 1198 — Mendoza (city) | Polite scraping |
 
 Tiendanube stores expose no public JSON API and their search paths are robots-disallowed, so the
 adapter politely crawls their category pages (schema.org JSON-LD) once per daily run instead of

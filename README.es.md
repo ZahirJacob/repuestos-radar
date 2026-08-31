@@ -51,9 +51,9 @@ Fuentes actuales (comercios establecidos, de Rosario salvo que se indique otra c
 | Evophone | WooCommerce | Av. Pellegrini 4041 | Scraping respetuoso |
 | Celuphone | WooCommerce | Santa Fe 4245 | Scraping respetuoso |
 | Litoral Accesorios | WooCommerce | Mitre 1158 | Scraping respetuoso |
-| MD Repuestos Originales | Tiendanube | Drysdale 5596, Carapachay — Vicente López (BA) | Scraping respetuoso |
+| MD Repuestos Originales | Tiendanube | Drysdale 5596, Carapachay — Vicente López (Bs. As.) | Scraping respetuoso |
 | GoFix | Tiendanube | Av. Avelino Rolón 217 — CABA | Scraping respetuoso |
-| One Store | Tiendanube | San Martín 1198 — Mendoza | Scraping respetuoso |
+| One Store | Tiendanube | San Martín 1198 — Mendoza (ciudad) | Scraping respetuoso |
 
 Las tiendas en Tiendanube no exponen una API JSON pública y sus rutas de búsqueda están
 prohibidas por robots.txt, así que el adaptador recorre con respeto sus páginas de categoría
