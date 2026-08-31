@@ -57,3 +57,13 @@ class Adapter(Protocol):
     def fetch(self, query: str) -> list[NormalizedListing]:
         """Return current listings for one search query, normalized."""
         ...
+
+    def close(self) -> None:
+        """Release the adapter's HTTP resources; the ingestion runner calls this."""
+        ...
+
+    def __enter__(self) -> "Adapter":
+        """Adapters are context managers so a runner can close them via ExitStack."""
+        ...
+
+    def __exit__(self, *exc_info: object) -> None: ...

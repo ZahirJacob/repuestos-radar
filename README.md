@@ -116,3 +116,23 @@ ruff check .
 ruff format --check .
 pytest
 ```
+
+## Running an ingestion
+
+The ingestion runner fetches current listings from every vetted source for every active tracked
+item, labels them with the relevance filter, and stores them as daily snapshots. It needs
+`DATABASE_URL` set in the environment (or in `.env`) — a Postgres or SQLite URL; tables are
+created automatically if missing.
+
+```bash
+python -m repuestos_radar.ingest
+```
+
+The run report goes to stdout as grep-able `key=value` lines — per source: tracked items queried,
+listings fetched, malformed products skipped, rows inserted vs already stored for the day, the
+relevance breakdown (`match` / `low_confidence` / `reject`), and the failure message if the source
+was unreachable — plus a summary line. A failing source never aborts the run: it is reported and
+the rest continue. The exit code is 0 when at least one source succeeded (a run with no active
+tracked items is a successful no-op) and 1 when every source failed or the run could not start.
+Progress is committed after each source/item save and storage is idempotent per day, so re-running
+after a crash is safe. This is the job M2 puts on the daily GitHub Actions schedule.

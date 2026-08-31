@@ -127,3 +127,25 @@ ruff check .
 ruff format --check .
 pytest
 ```
+
+## Correr una ingesta
+
+El runner de ingesta trae las publicaciones actuales de todas las fuentes verificadas para cada
+búsqueda seguida activa, las etiqueta con el filtro de relevancia y las guarda como snapshots
+diarios. Necesita `DATABASE_URL` en el entorno (o en `.env`) — una URL de Postgres o SQLite; las
+tablas se crean automáticamente si no existen.
+
+```bash
+python -m repuestos_radar.ingest
+```
+
+El reporte de la corrida sale por stdout como líneas `clave=valor` fáciles de grepear — por
+fuente: búsquedas consultadas, publicaciones traídas, productos malformados salteados, filas
+insertadas vs ya guardadas ese día, el desglose de relevancia (`match` / `low_confidence` /
+`reject`) y el mensaje de error si la fuente no estuvo disponible — más una línea de resumen. Una
+fuente que falla nunca aborta la corrida: se reporta y las demás siguen. El código de salida es 0
+cuando al menos una fuente funcionó (una corrida sin búsquedas activas es un no-op exitoso) y 1
+cuando fallaron todas las fuentes o la corrida no pudo arrancar. El progreso se commitea después
+de cada guardado por fuente/búsqueda y el almacenamiento es idempotente por día, así que volver a
+correr después de una corrida interrumpida es seguro. Este es el job que M2 pone en el cron diario de GitHub
+Actions.
