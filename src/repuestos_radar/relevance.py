@@ -25,10 +25,13 @@ from repuestos_radar.schema import NormalizedListing
 
 # --- tunable knobs ---------------------------------------------------------
 
-# Accessory / non-part terms. A title carrying one of these is almost never
-# the spare part being tracked, even when the model words match. EDIT FREELY:
-# this list is meant to be tuned as we see real data.
-BLOCKLIST: frozenset[str] = frozenset(
+# Two-tier blocklist. Both are EDITABLE module-level constants meant to be
+# tuned as we see real data.
+#
+# HARD_REJECT: unambiguous accessories. A title carrying one of these (that
+# the query did not itself ask for) is never the tracked spare part, so it is
+# a REJECT even when the model words match.
+HARD_REJECT: frozenset[str] = frozenset(
     {
         "funda",
         "fundas",
@@ -36,23 +39,40 @@ BLOCKLIST: frozenset[str] = frozenset(
         "case",
         "templado",
         "templados",
-        "vidrio",  # "vidrio templado" protector; real glass parts say "modulo"/"visor"
         "protector",
         "protectores",
         "mica",
-        "cable",
-        "cables",
-        "cargador",
-        "cargadores",
-        "auricular",
-        "auriculares",
+        "micas",
+        "film",
+        "hidrogel",
+        "lamina",
+        "laminas",
         "soporte",
         "holder",
         "adaptador",
+        "cargador",
+        "cargadores",
+        "popsocket",
+        "silicona",
         "manos",  # "manos libres"
+        "auriculares",  # plural = headphones (accessory); singular is SOFT below
+        "sim",  # "bandeja porta sim"
+    }
+)
+
+# SOFT: ambiguous terms that ALSO name real repairable parts Activcelu sells
+# (singular auricular = internal earpiece, parlante = internal loudspeaker,
+# vidrio = camera/back glass, cable = internal flex, etc.). These must NEVER
+# hard-reject: a title carrying one is capped at LOW_CONFIDENCE (never below)
+# unless it is itself the part being queried.
+SOFT: frozenset[str] = frozenset(
+    {
+        "vidrio",
+        "auricular",
         "parlante",
+        "cable",
+        "cables",
         "memoria",
-        "sim",
         "chip",
     }
 )
@@ -107,8 +127,9 @@ def normalize(text: str) -> str:
     stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
     # Punctuation -> space, collapse whitespace.
     spaced = re.sub(r"[^a-z0-9]+", " ", stripped).strip()
-    # Join a lone letter group to an adjacent digit group: "a 34" -> "a34".
-    joined = re.sub(r"\b([a-z]{1,3})\s+(\d{1,4}[a-z]?)\b", r"\1\2", spaced)
+    # Join a SINGLE leading letter to an adjacent digit group: "a 34" -> "a34".
+    # Restricted to one letter so stopwords aren't merged ("de 11" stays "de 11").
+    joined = re.sub(r"\b([a-z])\s+(\d{1,4}[a-z]?)\b", r"\1\2", spaced)
     return re.sub(r"\s+", " ", joined).strip()
 
 
@@ -147,14 +168,22 @@ def classify(query: str, title: str) -> RelevanceResult:
         if model not in title_set:
             return RelevanceResult(Relevance.REJECT, 0.0, f"required model number missing: {model}")
 
-    # 2) Blocklist: an accessory term the user did NOT ask for. A term that is
-    # in the query itself (e.g. query "cargador") is intended, not junk.
+    # 2) Blocklist tiers. A term the query itself asked for (e.g. query
+    # "cargador" or "auricular") is intended, not junk, so exclude query
+    # tokens from both tiers.
     query_set = set(query_tokens)
-    blocked = sorted(title_set & BLOCKLIST - query_set)
     part_tokens = [t for t in query_tokens if not _is_model_number(t) and t not in _STOPWORDS]
     strong_part_match = any(t in title_set for t in part_tokens)
-    if blocked and not strong_part_match:
-        return RelevanceResult(Relevance.REJECT, 0.0, f"blocklisted term: {blocked[0]}")
+
+    # HARD_REJECT: an unambiguous accessory the user did not ask for and that
+    # shares no part word -> REJECT.
+    hard_hits = sorted(title_set & HARD_REJECT - query_set)
+    if hard_hits and not strong_part_match:
+        return RelevanceResult(Relevance.REJECT, 0.0, f"accessory term: {hard_hits[0]}")
+
+    # SOFT: an ambiguous term that also names a real part -> never a hard
+    # reject; the result is capped at LOW_CONFIDENCE further down.
+    soft_hits = sorted(title_set & SOFT - query_set)
 
     # 3) Token coverage over the significant (non-stopword) query tokens.
     significant = [t for t in query_tokens if t not in _STOPWORDS]
@@ -173,19 +202,26 @@ def classify(query: str, title: str) -> RelevanceResult:
         similarity_sum += best
         if best >= TOKEN_FUZZY_THRESHOLD:
             fuzzy_hits += 1
-        elif best >= TOKEN_FUZZY_LOW_BAND:
-            fuzzy_hits += 0  # counts toward score, not toward a full hit
+        # A best in [LOW_BAND, THRESHOLD) is a partial hint: it lifts the
+        # score but does not count as a full token hit.
     matched = exact_hits + fuzzy_hits
     coverage = matched / len(significant)
     score = round(similarity_sum / len(significant), 4)
 
-    # 4) A blocklisted accessory that nonetheless shares a part word is
-    # suspicious: cap it at LOW_CONFIDENCE, never MATCH.
-    if blocked:
+    # 4) A HARD_REJECT accessory that nonetheless shares a part word, or any
+    # SOFT (ambiguous) term, caps the result at LOW_CONFIDENCE — never MATCH,
+    # never a hard reject.
+    if hard_hits:
         return RelevanceResult(
             Relevance.LOW_CONFIDENCE,
             score,
-            f"blocklisted term {blocked[0]} but part word present",
+            f"accessory term {hard_hits[0]} but part word present",
+        )
+    if soft_hits:
+        return RelevanceResult(
+            Relevance.LOW_CONFIDENCE,
+            score,
+            f"ambiguous term (possible accessory): {soft_hits[0]}",
         )
 
     if coverage >= 1.0:

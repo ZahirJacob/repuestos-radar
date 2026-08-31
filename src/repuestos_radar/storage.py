@@ -84,6 +84,10 @@ def save_classified_listings(
     REJECT-labeled listings are stored too (the filter never drops rows); a
     later query decides what to surface. Returns the number of rows actually
     inserted; the caller owns the commit.
+
+    Note: the daily snapshot is immutable — ON CONFLICT DO NOTHING means a
+    same-day re-run does NOT re-label an already-stored (source, external_id,
+    date) row, even if its relevance would now differ.
     """
     rows = [
         _to_row(
