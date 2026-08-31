@@ -34,6 +34,27 @@ def test_get_engine_reads_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
     engine.dispose()
 
 
+def test_bare_postgresql_url_is_pinned_to_psycopg3() -> None:
+    # No connection is made: create_engine only resolves the dialect/driver.
+    # Without the normalization this raises ModuleNotFoundError (psycopg2).
+    engine = get_engine("postgresql://user:secret@db.example.neon.tech/radar")
+    assert engine.url.drivername == "postgresql+psycopg"
+    assert engine.url.host == "db.example.neon.tech"
+    engine.dispose()
+
+
+def test_explicit_psycopg_url_passes_through_unchanged() -> None:
+    engine = get_engine("postgresql+psycopg://user:secret@db.example.neon.tech/radar")
+    assert engine.url.drivername == "postgresql+psycopg"
+    engine.dispose()
+
+
+def test_non_postgres_scheme_is_not_rewritten() -> None:
+    engine = get_engine(SQLITE_URL)
+    assert engine.url.drivername == "sqlite+pysqlite"
+    engine.dispose()
+
+
 def test_init_db_creates_tables() -> None:
     engine = get_engine(SQLITE_URL)
     init_db(engine)
