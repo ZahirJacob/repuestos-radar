@@ -1,13 +1,25 @@
 """Source adapters and the factory that picks one per source."""
 
 from repuestos_radar.adapters.base import Adapter, AdapterError
+from repuestos_radar.adapters.tiendanube import TiendanubeAdapter
 from repuestos_radar.adapters.wix import WixAdapter
 from repuestos_radar.adapters.woocommerce import WooCommerceAdapter
 from repuestos_radar.sources import Source
 
-__all__ = ["Adapter", "AdapterError", "WixAdapter", "WooCommerceAdapter", "adapter_for"]
+__all__ = [
+    "Adapter",
+    "AdapterError",
+    "TiendanubeAdapter",
+    "WixAdapter",
+    "WooCommerceAdapter",
+    "adapter_for",
+]
 
-_ADAPTERS = {"woocommerce": WooCommerceAdapter, "wix": WixAdapter}
+_ADAPTERS = {
+    "woocommerce": WooCommerceAdapter,
+    "wix": WixAdapter,
+    "tiendanube": TiendanubeAdapter,
+}
 
 
 def adapter_for(source: Source) -> Adapter:

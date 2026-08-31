@@ -4,6 +4,7 @@ import pytest
 
 from repuestos_radar.adapters import adapter_for
 from repuestos_radar.adapters.base import Adapter
+from repuestos_radar.adapters.tiendanube import TiendanubeAdapter
 from repuestos_radar.adapters.wix import WixAdapter
 from repuestos_radar.adapters.woocommerce import WooCommerceAdapter
 from repuestos_radar.sources import Source
@@ -35,7 +36,14 @@ def test_factory_returns_wix_adapter() -> None:
     assert adapter.source is source
 
 
-@pytest.mark.parametrize("platform", ["woocommerce", "wix"])
+def test_factory_returns_tiendanube_adapter() -> None:
+    source = make_source("tiendanube")
+    adapter = adapter_for(source)
+    assert isinstance(adapter, TiendanubeAdapter)
+    assert adapter.source is source
+
+
+@pytest.mark.parametrize("platform", ["woocommerce", "wix", "tiendanube"])
 def test_adapters_satisfy_the_contract(platform: str) -> None:
     adapter = adapter_for(make_source(platform))
     # Note: runtime_checkable isinstance only proves the attributes/methods
