@@ -179,6 +179,6 @@ python -m repuestos_radar.tracked pause 3
 python -m repuestos_radar.tracked resume 3
 ```
 
-`add` con una búsqueda ya seguida lo avisa en vez de fallar, y reactiva el ítem si estaba
+`add` con una búsqueda ya seguida te lo avisa en vez de fallar, y reactiva el ítem si estaba
 pausado. Los ítems se pausan, no se borran: un ítem pausado conserva su historial de precios y
 simplemente queda afuera de la ingesta diaria.
