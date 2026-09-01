@@ -64,3 +64,29 @@ def test_fair_price_is_the_median_across_stores():
 
 def test_empty_input_yields_no_groups():
     assert analyze_item([]) == []
+
+
+def test_outlier_excluded_from_fair_price_but_still_shown():
+    listings = [
+        row("novocell", "Modulo A32 OLED", "45000"),
+        row("celuphone", "Modulo A32 OLED", "41000"),
+        row("tienda-movil", "Modulo A32 OLED", "48000"),
+        row("gofix", "Modulo A32 OLED", "9000"),  # < 0.5x median -> weird
+    ]
+    (oled,) = analyze_item(listings)
+    flagged = [o for o in oled.offers if o.outlier]
+    assert [o.source_slug for o in flagged] == ["gofix"]
+    assert len(oled.offers) == 4  # nothing hidden
+    assert oled.store_count == 3  # but only 3 contribute
+    assert oled.fair_price == Decimal("45000")
+
+
+def test_small_groups_are_never_flagged():
+    listings = [
+        row("novocell", "Modulo A32 OLED", "45000"),
+        row("celuphone", "Modulo A32 OLED", "41000"),
+        row("gofix", "Modulo A32 OLED", "9000"),  # only 3 stores: not flagged
+    ]
+    (oled,) = analyze_item(listings)
+    assert not any(o.outlier for o in oled.offers)
+    assert oled.fair_price == Decimal("41000")
