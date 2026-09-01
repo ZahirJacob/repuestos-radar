@@ -151,3 +151,22 @@ def test_latest_day_none_when_empty(session):
     session.add(item)
     session.commit()
     assert latest_day(session, item.id) is None
+
+
+def test_a32_two_tier_spread_from_real_data():
+    """The A32 modulo real-world case: copies and originals must not mix."""
+    listings = [
+        row("novocell", "Modulo Samsung A32 Incell", "20700"),
+        row("tienda-movil", "Modulo A32 TFT sin marco", "24500"),
+        row("novocell", "Modulo Samsung A32 OLED con marco", "45000"),
+        row("celuphone", "Pantalla A32 AMOLED", "41000"),
+        row("mdrepuestos", "Modulo Samsung A32 Original Service Pack", "58700"),
+    ]
+    analyses = analyze_item(listings)
+    by_tier = {a.tier: a for a in analyses}
+    assert by_tier["incell"].fair_price == Decimal("22600")  # median of 20700, 24500
+    assert by_tier["oled"].offers[0].source_slug == "celuphone"
+    assert by_tier["original"].basis == BASIS_SINGLE_STORE
+    assert by_tier["original"].fair_price is None
+    # Display order: better tiers first.
+    assert [a.tier for a in analyses] == ["original", "oled", "incell"]
