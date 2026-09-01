@@ -195,7 +195,10 @@ def test_main_add_list_remove_roundtrip(capsys, cli_db) -> None:
     assert main(["list"]) == 0
     assert "total=1" in capsys.readouterr().out
     assert main(["remove", "1"]) == 0
-    capsys.readouterr()
+    out = capsys.readouterr().out
+    # The row is gone, so the confirmation names what was deleted, not just the id.
+    assert out.startswith("removed:")
+    assert 'label="Cambio módulo A32"' in out
     assert main(["list"]) == 0
     assert "no service prices" in capsys.readouterr().out
 

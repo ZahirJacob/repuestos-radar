@@ -170,12 +170,16 @@ def _cmd_set_price(session: Session, args: argparse.Namespace) -> int:
 
 
 def _cmd_remove(session: Session, args: argparse.Namespace) -> int:
-    status = remove_service(session, args.id)
-    if status == NOT_FOUND:
+    service = session.get(ServicePrice, args.id)
+    if service is None:
         print(f"error: no service price with id {args.id}")
         return 1
+    # Describe before deleting: after the commit the row is gone, and this is
+    # the one command where confirming WHICH repair was touched matters most.
+    description = _describe(service)
+    remove_service(session, args.id)
     session.commit()
-    print(f"removed: id={args.id}")
+    print(f"removed: {description}")
     return 0
 
 
