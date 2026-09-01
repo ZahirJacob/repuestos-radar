@@ -89,10 +89,13 @@ Content in M3's priority order:
 
 The counter-moment feature: fresh prices for one part in ~30–60 seconds.
 
-- **New adapter mode**: instead of crawling catalogs, each adapter queries the
-  store's own search page (e.g. `?q=<terms>`) with the tracked item's search
-  terms, fetching only the first few result pages. A source with no usable
-  search endpoint is skipped in quick mode with a visible note.
+- **Reuses the existing search-based adapters** (amended during planning,
+  2026-09-01): the WooCommerce and Wix adapters already query each store's own
+  search endpoint per tracked item — no new adapter mode is needed. The three
+  Tiendanube sources are crawl-based because the platform robots-disallows
+  `/search/`; per the courtesy policy (skip, don't work around) they are
+  skipped in quick mode with a visible note ("solo búsqueda diaria") and stay
+  covered by the daily crawl.
 - **Parallel across stores, polite within each store**: all sources run
   concurrently, but each source keeps its own sequential 1-second-delay
   fetching. Total wall time ≈ the slowest store.
@@ -154,7 +157,7 @@ src/repuestos_radar/
     admin.py        # Ajustes page
     distance.py     # haversine + formatting (pure functions)
     quicksearch.py  # orchestrates parallel quick-search runs + daily cap
-  adapters/…        # each adapter gains a search-mode entry point
+  adapters/…        # unchanged — woo/wix already search; tiendanube stays crawl-only
 ```
 
 Pages render dataclasses returned by `analysis`/`margin`/`quality`; formatting
