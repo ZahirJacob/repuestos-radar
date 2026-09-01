@@ -53,7 +53,12 @@ Current sources (established storefronts, in Rosario unless noted):
 
 Tiendanube stores expose no public JSON API and their search paths are robots-disallowed, so the
 adapter politely crawls their category pages (schema.org JSON-LD) once per daily run instead of
-searching.
+searching. The crawl is tunable per source in `sources.yaml` with two optional keys:
+`priority_categories` (category path slugs to crawl first, in order — so a store where only some
+categories matter, like One Store's phone categories, is covered before the page budget runs out)
+and `max_catalog_pages` (overrides the default 80-page crawl budget — MD Repuestos' full parts
+catalog needs 160). A priority slug that no longer matches any category logs a warning, so a store
+re-slugging a category gets noticed.
 
 **Why not MercadoLibre?** Its listing-search API is restricted to certified partners (regular app
 and user credentials get 403s), and its listing pages redirect automated requests — even with an
@@ -136,10 +141,20 @@ created automatically if missing.
 python -m repuestos_radar.ingest
 ```
 
+To test one shop without touching the rest, `--source SLUG` (repeatable) restricts the run to the
+named source(s); an unknown slug aborts at startup like any other config error:
+
+```bash
+python -m repuestos_radar.ingest --source onestore --source gofix
+```
+
 The run report goes to stdout as grep-able `key=value` lines — per source: tracked items queried,
 listings fetched, malformed products skipped, rows inserted vs already stored for the day, the
 relevance breakdown (`match` / `low_confidence` / `reject`), and the failure message if the source
-was unreachable — plus a summary line. A failing source never aborts the run: it is reported and
+was unreachable — plus a summary line. Crawl-based sources (Tiendanube) also report their crawl
+coverage: `pages=12 crawl=full` means the whole catalog was crawled, `pages=80 crawl=partial` means
+the page budget ran out and the catalog may be incomplete. A failing source never aborts the run:
+it is reported and
 the rest continue. The exit code is 0 when at least one source succeeded (a run with no active
 tracked items is a successful no-op) and 1 when every source failed or the run could not start.
 Progress is committed after each source/item save and storage is idempotent per day, so re-running
@@ -152,7 +167,7 @@ day at 09:00 UTC (06:00 in Argentina) — exactly one scheduled run per day, as 
 policy requires. The job checks out the repo, installs the locked dependencies with uv
 (`uv sync --locked`, against the committed `uv.lock`), and runs `python -m repuestos_radar.ingest`;
 the run report shows up in the workflow log. A concurrency
-group keeps runs from ever overlapping, the job times out after 15 minutes, and it is never retried
+group keeps runs from ever overlapping, the job times out after 20 minutes, and it is never retried
 automatically.
 
 It needs the `DATABASE_URL` repository secret (Settings → Secrets and variables → Actions) with the
