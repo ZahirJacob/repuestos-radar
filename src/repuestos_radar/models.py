@@ -101,3 +101,19 @@ class ServicePrice(Base):
     )
 
     tracked_item: Mapped[TrackedItem] = relationship()
+
+
+class QuickSearchRun(Base):
+    """One on-demand quick search, recorded to enforce the daily cap.
+
+    ``ran_on`` is the Argentine calendar day the run counts against —
+    computed by the caller, stored explicitly so the cap query never does
+    timezone math in SQL (SQLite and Postgres disagree on datetime handling).
+    """
+
+    __tablename__ = "quick_search_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tracked_item_id: Mapped[int] = mapped_column(ForeignKey("tracked_items.id"))
+    ran_on: Mapped[date] = mapped_column(Date, index=True)
+    ran_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
