@@ -84,6 +84,13 @@ sources:
       source rather than work around it. No public JSON API and /search/ is
       robots-disallowed platform-wide, so the adapter crawls category pages
       (JSON-LD) instead of searching.
+    # ~824 products and 300+ category pages (sitemap, 2026-09-01). The
+    # broad-first crawl covers the whole catalog through the top-level
+    # moto-serie-*/otras-marcas* categories, but the default 80-page budget
+    # ran out partway (this is our most important parts source). 160 pages
+    # covers every top-level category with headroom; the deeper per-model
+    # categories only duplicate their parents.
+    max_catalog_pages: 160
 
   - slug: gofix
     name: GoFix
@@ -122,3 +129,10 @@ sources:
       source rather than work around it. No public JSON API and /search/ is
       robots-disallowed platform-wide, so the adapter crawls category pages
       (JSON-LD) instead of searching.
+    # Mixed retailer (audio, gaming, informática); only the phone categories
+    # matter to the tracker, and broad-first ordering starved them of budget
+    # on the real run. Slugs verified against the sitemap on 2026-09-01:
+    # the celulares1 subtree holds the phones.
+    priority_categories:
+      - celulares1/celulares-reacondicionados
+      - celulares1/celulares2
