@@ -10,6 +10,14 @@ from repuestos_radar.analysis import analyze_item
 from repuestos_radar.db import get_engine, get_session_factory, init_db
 from repuestos_radar.margin import margins_for
 from repuestos_radar.models import ServicePrice, TrackedItem
+from repuestos_radar.services import (
+    ADDED,
+    UPDATED,
+    add_service,
+    list_services,
+    main,
+    remove_service,
+)
 
 
 @pytest.fixture()
@@ -93,3 +101,69 @@ def test_all_outlier_tier_is_skipped():
     margins = margins_for(Decimal("75000"), analyses)
     (oled,) = margins
     assert oled.part_price == Decimal("44000")  # outlier never the margin basis
+
+
+def test_add_service_and_update_on_same_label(session, item):
+    service, status = add_service(session, "Cambio módulo A32", item.id, Decimal("75000"))
+    assert status == ADDED
+    service, status = add_service(session, "Cambio módulo A32", item.id, Decimal("80000"))
+    assert status == UPDATED
+    assert service.price_ars == Decimal("80000")
+    assert len(list_services(session)) == 1
+
+
+def test_remove_service(session, item):
+    service, _ = add_service(session, "Cambio módulo A32", item.id, Decimal("75000"))
+    session.flush()
+    assert remove_service(session, service.id) == "removed"
+    assert list_services(session) == []
+
+
+# --- main() wiring, against a temp SQLite file ------------------------------
+
+
+@pytest.fixture
+def cli_db(tmp_path, monkeypatch):
+    url = f"sqlite+pysqlite:///{tmp_path / 'radar.db'}"
+    monkeypatch.setenv("DATABASE_URL", url)
+    return url
+
+
+def _seed_item(url: str) -> int:
+    """Create one tracked item in the CLI's database and return its id."""
+    engine = get_engine(url)
+    init_db(engine)
+    with get_session_factory(engine)() as session:
+        tracked = TrackedItem(query="modulo samsung a32")
+        session.add(tracked)
+        session.commit()
+        item_id = tracked.id
+    engine.dispose()
+    return item_id
+
+
+def test_main_add_list_remove_roundtrip(capsys, cli_db) -> None:
+    item_id = _seed_item(cli_db)
+    assert main(["add", "Cambio módulo A32", "--item", str(item_id), "--price", "75000"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("added:")
+    assert 'label="Cambio módulo A32"' in out
+    assert main(["list"]) == 0
+    assert "total=1" in capsys.readouterr().out
+    assert main(["remove", "1"]) == 0
+    capsys.readouterr()
+    assert main(["list"]) == 0
+    assert "no service prices" in capsys.readouterr().out
+
+
+def test_main_add_unknown_tracked_item_exits_one(capsys, cli_db) -> None:
+    assert main(["add", "Cambio módulo A32", "--item", "42", "--price", "75000"]) == 1
+    assert "no tracked item with id 42" in capsys.readouterr().out
+
+
+def test_main_add_rejects_non_positive_price(capsys, cli_db) -> None:
+    item_id = _seed_item(cli_db)
+    assert main(["add", "Cambio módulo A32", "--item", str(item_id), "--price", "0"]) == 1
+    assert "positive" in capsys.readouterr().out
+    assert main(["add", "Cambio módulo A32", "--item", str(item_id), "--price", "abc"]) == 1
+    assert "number" in capsys.readouterr().out
