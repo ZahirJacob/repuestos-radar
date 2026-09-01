@@ -43,8 +43,8 @@ def sitemap_gz(locs: list[str]) -> bytes:
     return gzip.compress(xml.encode("utf-8"))
 
 
-def make_source() -> Source:
-    return Source(
+def make_source(**overrides) -> Source:
+    fields = dict(
         slug="store-test",
         name="Store Test",
         url=BASE_URL,
@@ -53,6 +53,8 @@ def make_source() -> Source:
         city="Rosario",
         trust_notes="Test store.",
     )
+    fields.update(overrides)
+    return Source(**fields)
 
 
 class FakeStore:
@@ -108,9 +110,9 @@ class FakeStore:
         return [r for r in self.requests if (r.url.path.rstrip("/") or "/") == path]
 
 
-def make_adapter(store: FakeStore) -> TiendanubeAdapter:
+def make_adapter(store: FakeStore, source: Source | None = None) -> TiendanubeAdapter:
     return TiendanubeAdapter(
-        make_source(), transport=httpx.MockTransport(store), sleep=lambda _s: None
+        source or make_source(), transport=httpx.MockTransport(store), sleep=lambda _s: None
     )
 
 
@@ -288,6 +290,153 @@ def test_homepage_fallback_when_no_sitemap_is_advertised() -> None:
     # Categories came from the homepage nav; /productos/ and foreign links skipped.
     assert len(store.category_requests("/")) >= 1
     assert not any(r.url.path.startswith("/productos") for r in store.requests)
+
+
+# --- per-source crawl tuning -------------------------------------------------
+
+MULTI_CAT_LOCS = [
+    f"{BASE_URL}/accesorios/",
+    f"{BASE_URL}/celulares/",
+    f"{BASE_URL}/celulares/samsung/",
+    f"{BASE_URL}/repuestos/modulos/",
+]
+
+
+def multi_cat_store(**kwargs) -> FakeStore:
+    page = fixture("tiendanube_cat_page1.html")
+    empty = fixture("tiendanube_empty.html")
+    return FakeStore(
+        pages={
+            "/accesorios": [page],
+            "/celulares": [page],
+            "/celulares/samsung": [empty],
+            "/repuestos/modulos": [page],
+        },
+        sitemap_locs=MULTI_CAT_LOCS,
+        **kwargs,
+    )
+
+
+def first_category_paths(store: FakeStore) -> list[str]:
+    """Distinct category paths in the order their first page was requested."""
+    seen: list[str] = []
+    for request in store.requests:
+        path = request.url.path.rstrip("/") or "/"
+        if path in {"/robots.txt", "/"} or request.url.host != "store.example.com.ar":
+            continue
+        if path not in seen:
+            seen.append(path)
+    return seen
+
+
+def test_priority_categories_are_crawled_first_in_configured_order() -> None:
+    source = make_source(priority_categories=("repuestos/modulos", "celulares"))
+    store = multi_cat_store()
+
+    make_adapter(store, source).fetch("modulo")
+
+    # The two priority slugs first (configured order, subtree matches included,
+    # broad-first within a slug), then the rest broad-first as before.
+    assert first_category_paths(store) == [
+        "/repuestos/modulos",
+        "/celulares",
+        "/celulares/samsung",
+        "/accesorios",
+    ]
+
+
+def test_without_priority_categories_ordering_is_broad_first() -> None:
+    store = multi_cat_store()
+
+    make_adapter(store).fetch("modulo")
+
+    assert first_category_paths(store) == [
+        "/accesorios",
+        "/celulares",
+        "/celulares/samsung",
+        "/repuestos/modulos",
+    ]
+
+
+def test_priority_slug_matching_nothing_logs_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    source = make_source(priority_categories=("no-such-category",))
+    store = multi_cat_store()
+
+    with caplog.at_level(logging.WARNING):
+        listings = make_adapter(store, source).fetch("modulo")
+
+    assert listings  # harmless: the crawl proceeds broad-first
+    assert any("no-such-category" in record.message for record in caplog.records)
+
+
+def test_priority_categories_survive_the_candidate_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # /repuestos/modulos/ sorts last broad-first; with only 2 candidate slots
+    # it must still be crawled because it is configured as a priority.
+    monkeypatch.setattr(repuestos_radar.adapters.tiendanube, "_MAX_CANDIDATES", 2)
+    source = make_source(priority_categories=("repuestos/modulos",))
+    store = multi_cat_store()
+
+    make_adapter(store, source).fetch("modulo")
+
+    assert first_category_paths(store) == ["/repuestos/modulos", "/accesorios"]
+
+
+def test_max_catalog_pages_overrides_the_default_budget(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    source = make_source(max_catalog_pages=3)
+    store = two_page_store(always_full=True)
+    adapter = make_adapter(store, source)
+
+    with caplog.at_level(logging.WARNING):
+        listings = adapter.fetch("modulo")
+
+    crawled = len(store.category_requests("/celulares")) + len(store.category_requests("/contacto"))
+    assert crawled == 3
+    assert listings
+    assert any("(3 pages)" in record.message for record in caplog.records)
+
+
+def test_default_budget_is_unchanged() -> None:
+    assert repuestos_radar.adapters.tiendanube.MAX_CATALOG_PAGES == 80
+
+
+def test_full_crawl_reports_pages_fetched_and_no_exhaustion() -> None:
+    store = two_page_store()
+    adapter = make_adapter(store)
+
+    assert adapter.pages_fetched == 0
+    assert adapter.budget_exhausted is False
+
+    adapter.fetch("modulo")
+
+    # /celulares pages 1-3 + one probe of /contacto = 4 category page fetches.
+    assert adapter.pages_fetched == 4
+    assert adapter.budget_exhausted is False
+
+
+def test_exhausted_budget_is_reported_on_the_adapter() -> None:
+    source = make_source(max_catalog_pages=3)
+    adapter = make_adapter(two_page_store(always_full=True), source)
+
+    adapter.fetch("modulo")
+
+    assert adapter.pages_fetched == 3
+    assert adapter.budget_exhausted is True
+
+
+def test_crawl_attributes_survive_cached_fetches() -> None:
+    adapter = make_adapter(two_page_store())
+
+    adapter.fetch("modulo")
+    adapter.fetch("bateria")  # cache hit: no new requests
+
+    assert adapter.pages_fetched == 4
+    assert adapter.budget_exhausted is False
 
 
 def test_context_manager_closes_client() -> None:
