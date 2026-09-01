@@ -102,6 +102,35 @@ def test_missing_app_password_is_a_visible_config_error(seeded_db, monkeypatch):
     assert at.error
 
 
+class _RaisingCookieController:
+    """Stub standing in for a cookie component whose JS bridge misbehaves."""
+
+    def get(self, name):
+        raise RuntimeError("cookie backend exploded")
+
+    def set(self, *args, **kwargs):
+        raise RuntimeError("cookie backend exploded")
+
+
+def test_cookie_component_failure_degrades_gracefully(seeded_db, monkeypatch):
+    """A raising cookie READ must never crash the script, and must never log
+    anyone in (fail-secure); a raising cookie WRITE on successful login must
+    not stop the login from succeeding."""
+    from repuestos_radar.dashboard import app as dashboard_app
+
+    monkeypatch.setattr(dashboard_app, "_cookie_controller", lambda: _RaisingCookieController())
+
+    at = _app(seeded_db).run()
+    assert not at.exception
+    assert at.text_input  # still reaches the password form, not a crash
+    assert "authed" not in at.session_state or not at.session_state["authed"]
+
+    at.text_input[0].set_value("clave-test").run()
+    at.button[0].set_value(True).run()
+    assert not at.exception
+    assert at.session_state["authed"] is True  # a write failure doesn't block login
+
+
 def _login(at):
     at.text_input[0].set_value("clave-test").run()
     at.button[0].set_value(True).run()

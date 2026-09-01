@@ -1,5 +1,6 @@
 """App shell: page config, login gate, navigation, freshness footer."""
 
+import contextlib
 import os
 
 import streamlit as st
@@ -30,6 +31,29 @@ def _cookie_controller():
         return None
 
 
+def _read_cookie(controller) -> str | None:
+    """The remembered token, or None on missing cookie / component failure.
+
+    A cookie-component read failure must degrade to session-only login, never
+    crash the script and never count as authentication — so any exception
+    here is treated exactly like "no cookie."
+    """
+    if not controller:
+        return None
+    try:
+        return controller.get(_COOKIE_NAME)
+    except Exception:
+        return None
+
+
+def _write_cookie(controller, password: str) -> None:
+    """Best-effort remember-me write; a failure here must not break login."""
+    if not controller:
+        return
+    with contextlib.suppress(Exception):
+        controller.set(_COOKIE_NAME, auth.make_token(password), max_age=auth.TOKEN_TTL_SECONDS)
+
+
 def _require_login() -> None:
     password = _expected_password()
     if not password:
@@ -38,7 +62,7 @@ def _require_login() -> None:
     if st.session_state.get("authed"):
         return
     controller = _cookie_controller()
-    token = controller.get(_COOKIE_NAME) if controller else None
+    token = _read_cookie(controller)
     if isinstance(token, str) and auth.token_valid(password, token):
         st.session_state["authed"] = True
         return
@@ -49,10 +73,7 @@ def _require_login() -> None:
     if submitted:
         if auth.check_password(entered, password):
             st.session_state["authed"] = True
-            if controller:
-                controller.set(
-                    _COOKIE_NAME, auth.make_token(password), max_age=auth.TOKEN_TTL_SECONDS
-                )
+            _write_cookie(controller, password)
             st.rerun()
         else:
             st.error(text_es.WRONG_PASSWORD)
