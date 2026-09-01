@@ -34,7 +34,7 @@ def test_offer_line_plain_match():
     )
     assert "[Celuphone](https://celuphone.com.ar/p/1)" in line
     assert "$20.700" in line
-    assert "revisar" not in line
+    assert "⚠" not in line  # no warning marker for a plain match
 
 
 def test_offer_line_low_confidence_and_outlier_warn():
@@ -48,7 +48,11 @@ def test_offer_line_low_confidence_and_outlier_warn():
         outlier=True,
     )
     line = detail._offer_line(offer, names={}, distance_text=None)
-    assert "revisar" in line and "novocell" in line
+    assert "⚠" in line and "novocell" in line
+    # both warnings compose once, cleanly — no doubled "revisar:" lead-in
+    assert "muy alejado del resto" in line
+    assert "otro modelo" in line
+    assert line.count("revisar") == 0
 
 
 def test_fair_price_line_small_sample_shows_range():
@@ -75,4 +79,4 @@ def test_fair_price_line_single_store_is_honest():
         store_count=1,
         basis=BASIS_SINGLE_STORE,
     )
-    assert "un solo local" in detail._fair_price_line(analysis)
+    assert "una sola tienda" in detail._fair_price_line(analysis)

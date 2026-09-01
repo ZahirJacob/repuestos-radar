@@ -120,7 +120,10 @@ def render() -> None:
             if shown:
                 trend_text = " · ".join(
                     f"{p.direction} {str(abs(p.pct_change)).replace('.', ',')}% "
-                    + text_es.TREND_VS.format(days=p.days_back)
+                    # The real gap, not the nominal window — a stored day can
+                    # land up to _TREND_TOLERANCE_DAYS off the target
+                    # (report.py does the same for the exact same reason).
+                    + text_es.TREND_VS.format(days=(day - p.compared_date).days)
                     for p in shown
                 )
                 st.caption(f"{TIER_LABELS_ES[analysis.tier]}: {trend_text}")
