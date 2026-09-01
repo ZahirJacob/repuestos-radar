@@ -19,10 +19,12 @@ PART_TIER_ORDER = (TIER_INCELL, TIER_OLED, TIER_ORIGINAL)
 
 # Signals are written in normalized form (see relevance.normalize): "in-cell"
 # normalizes to "in cell", so the space form covers the hyphen form too.
+# "orig" is a common title abbreviation ("MODULO IPHONE 13 ORIG"); whole-word
+# matching keeps it from touching "original"/"originalidad"/"origen".
 _PART_TIER_SIGNALS: dict[str, tuple[str, ...]] = {
     TIER_INCELL: ("incell", "in cell", "tft"),
     TIER_OLED: ("oled", "amoled"),
-    TIER_ORIGINAL: ("original", "service pack", "genuine"),
+    TIER_ORIGINAL: ("original", "orig", "service pack", "genuine"),
 }
 
 
@@ -49,18 +51,24 @@ DEVICE_NEW = "nuevo"
 DEVICE_REFURBISHED = "reacondicionado"
 
 # Refurbished wins a conflict for the same oversell reason as part tiers.
+# Feminine forms included: titles say "usada"/"nueva"/"sellada" for feminine
+# nouns (pantalla, bateria, tablet).
 _DEVICE_SIGNALS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    (DEVICE_REFURBISHED, ("reacondicionado", "refurbished", "usado")),
-    (DEVICE_NEW, ("nuevo", "sellado", "caja sellada")),
+    (DEVICE_REFURBISHED, ("reacondicionado", "refurbished", "usado", "usada")),
+    (DEVICE_NEW, ("nuevo", "nueva", "sellado", "sellada", "caja sellada")),
 )
+
+# "c/marco" and "s/marco" normalize to "c marco" / "s marco".
+_FRAME_WITH_SIGNALS = ("con marco", "c marco")
+_FRAME_WITHOUT_SIGNALS = ("sin marco", "s marco")
 
 
 def label_frame(title: str) -> str:
     """Frame detail is a price modifier within a tier, not a tier itself."""
     normalized = normalize(title)
-    if _has_signal(normalized, "con marco"):
+    if any(_has_signal(normalized, signal) for signal in _FRAME_WITH_SIGNALS):
         return FRAME_WITH
-    if _has_signal(normalized, "sin marco"):
+    if any(_has_signal(normalized, signal) for signal in _FRAME_WITHOUT_SIGNALS):
         return FRAME_WITHOUT
     return FRAME_UNKNOWN
 

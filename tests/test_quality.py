@@ -22,6 +22,12 @@ def test_original_signals():
     assert label_part_tier("Pantalla iPhone 11 Service Pack") == TIER_ORIGINAL
 
 
+def test_original_orig_abbreviation():
+    # Real stored titles abbreviate: "MODULO IPHONE 13 ORIG".
+    assert label_part_tier("MODULO IPHONE 13 ORIG") == TIER_ORIGINAL
+    assert label_part_tier("MODULO SAMSUNG A54 ORIG C/MARCO") == TIER_ORIGINAL
+
+
 def test_oled_signals_including_amoled():
     assert label_part_tier("Módulo A32 OLED con marco") == TIER_OLED
     assert label_part_tier("Pantalla AMOLED Samsung A54") == TIER_OLED
@@ -44,9 +50,12 @@ def test_conflict_humbler_tier_wins():
 
 
 def test_word_boundaries_no_substring_leaks():
-    # "amoled" must not match via its "oled" substring twice, and unrelated
-    # words containing signal letters must not match at all.
+    # Words that merely contain a signal ("Soledad" contains "oled",
+    # "originalidad" contains "original", "origen" contains "orig") must not
+    # match at all.
     assert label_part_tier("Funda originalidad dudosa") == TIER_UNLABELED
+    assert label_part_tier("Funda Soledad edicion") == TIER_UNLABELED
+    assert label_part_tier("Cable origen legal") == TIER_UNLABELED
 
 
 def test_frame_detail():
@@ -55,11 +64,23 @@ def test_frame_detail():
     assert label_frame("Modulo A32 OLED") == FRAME_UNKNOWN
 
 
+def test_frame_slash_abbreviations():
+    # Real stored titles abbreviate: normalize turns "C/MARCO" into "c marco".
+    assert label_frame("MODULO SAMSUNG A54 OLED C/MARCO") == FRAME_WITH
+    assert label_frame("Modulo A32 Incell S/MARCO") == FRAME_WITHOUT
+
+
 def test_device_condition():
     assert label_device_condition("Samsung S24 Ultra Reacondicionado") == DEVICE_REFURBISHED
     assert label_device_condition("Moto G35 usado impecable") == DEVICE_REFURBISHED
     assert label_device_condition("iPhone 13 nuevo caja sellada") == DEVICE_NEW
     assert label_device_condition("Moto G17 256GB") == TIER_UNLABELED
+
+
+def test_device_condition_feminine_forms():
+    assert label_device_condition("iPhone 12 usada impecable") == DEVICE_REFURBISHED
+    assert label_device_condition("Tablet Samsung nueva en caja") == DEVICE_NEW
+    assert label_device_condition("Consola sellada garantia oficial") == DEVICE_NEW
 
 
 def test_device_condition_conflict_refurbished_wins():
