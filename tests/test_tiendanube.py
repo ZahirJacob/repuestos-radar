@@ -62,8 +62,11 @@ class FakeStore:
 
     ``pages`` maps a category path (no trailing slash) to the HTML for its
     successive ?page=N values; pages past the end serve the empty fixture.
-    ``always_full`` serves the first page for every page number (a crawl that
-    would never terminate without the page budget).
+    ``always_full`` serves the first page for every page number (the theme-
+    fallback trap seen in the wild: an "empty" category serving the same
+    recommended products forever). ``always_full_unique`` also serves a full
+    page for every page number, but with per-page SKUs — a crawl that only
+    the page budget can stop.
     """
 
     def __init__(
@@ -73,12 +76,14 @@ class FakeStore:
         sitemap_locs: list[str] | None = None,
         home_html: str | None = None,
         always_full: bool = False,
+        always_full_unique: bool = False,
     ):
         self.pages = pages
         self.robots = robots
         self.sitemap = sitemap_gz(SITEMAP_LOCS if sitemap_locs is None else sitemap_locs)
         self.home_html = home_html
         self.always_full = always_full
+        self.always_full_unique = always_full_unique
         self.requests: list[httpx.Request] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
@@ -99,6 +104,10 @@ class FakeStore:
         if path in self.pages:
             page = int(request.url.params.get("page", "1"))
             sequence = self.pages[path]
+            if self.always_full_unique:
+                unique = sequence[0].replace('"sku": "', f'"sku": "P{page}-')
+                unique = unique.replace("/productos/", f"/productos/p{page}-")
+                return httpx.Response(200, text=unique)
             if self.always_full:
                 return httpx.Response(200, text=sequence[0])
             if page <= len(sequence):
@@ -266,7 +275,7 @@ def test_page_budget_caps_a_runaway_crawl(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     monkeypatch.setattr(repuestos_radar.adapters.tiendanube, "MAX_CATALOG_PAGES", 3)
-    store = two_page_store(always_full=True)
+    store = two_page_store(always_full_unique=True)
     adapter = make_adapter(store)
 
     with caplog.at_level(logging.WARNING):
@@ -389,7 +398,7 @@ def test_max_catalog_pages_overrides_the_default_budget(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     source = make_source(max_catalog_pages=3)
-    store = two_page_store(always_full=True)
+    store = two_page_store(always_full_unique=True)
     adapter = make_adapter(store, source)
 
     with caplog.at_level(logging.WARNING):
@@ -399,6 +408,27 @@ def test_max_catalog_pages_overrides_the_default_budget(
     assert crawled == 3
     assert listings
     assert any("(3 pages)" in record.message for record in caplog.records)
+
+
+def test_identical_repeated_page_ends_the_category_not_the_budget(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Some themes serve the same 'recommended products' listing for every
+    ?page=N of an effectively empty category (seen live on onestore) — the
+    zero-products stop never fires and one such category would eat the whole
+    page budget. A page identical to the previous one ends the category."""
+    store = two_page_store(always_full=True)
+    adapter = make_adapter(store)
+
+    with caplog.at_level(logging.WARNING):
+        listings = adapter.fetch("modulo")
+
+    # /celulares pages 1+2 (identical -> stop) + the /contacto probe.
+    assert len(store.category_requests("/celulares")) == 2
+    assert adapter.pages_fetched == 3
+    assert adapter.budget_exhausted is False
+    assert listings  # page 1's products are still in the catalog
+    assert any("identical" in record.message for record in caplog.records)
 
 
 def test_default_budget_is_unchanged() -> None:
@@ -421,7 +451,7 @@ def test_full_crawl_reports_pages_fetched_and_no_exhaustion() -> None:
 
 def test_exhausted_budget_is_reported_on_the_adapter() -> None:
     source = make_source(max_catalog_pages=3)
-    adapter = make_adapter(two_page_store(always_full=True), source)
+    adapter = make_adapter(two_page_store(always_full_unique=True), source)
 
     adapter.fetch("modulo")
 

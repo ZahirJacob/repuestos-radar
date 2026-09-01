@@ -16,7 +16,10 @@ slugs are crawled before everything else, in the configured order — so the
 categories the client actually cares about are covered even when the page
 budget cuts the crawl short. Each category is paginated with ``?page=N``;
 past-the-end pages return HTTP 200 with zero products, so the crawl stops on
-the first empty page. The whole crawl is bounded by the source's
+the first empty page — and a page identical to the previous one also ends
+the category, because some themes serve a "recommended products" fallback
+for every page of an effectively empty category. The whole crawl is bounded
+by the source's
 ``max_catalog_pages`` (``MAX_CATALOG_PAGES`` when unset) page fetches;
 hitting the cap logs a warning and returns the partial catalog rather than
 failing the source. ``pages_fetched`` and ``budget_exhausted`` report the
@@ -130,6 +133,7 @@ class TiendanubeAdapter:
         total_product_blocks = 0
         for category_url in allowed:
             page = 1
+            previous_page_ids: set[str] | None = None
             while True:
                 if self.pages_fetched >= budget:
                     logger.warning(
@@ -159,6 +163,24 @@ class TiendanubeAdapter:
                     # a page of only out-of-stock products does not end the
                     # category early.
                     break
+                page_ids = {listing.external_id for listing in page_listings}
+                if page_ids and page_ids == previous_page_ids:
+                    # Some themes serve the same "recommended products"
+                    # listing for every ?page=N of an effectively empty
+                    # category, so the zero-products stop never fires and one
+                    # category would eat the whole page budget. An identical
+                    # repeat of the previous page ends the category. (Only
+                    # non-empty id sets are compared, so consecutive pages of
+                    # out-of-stock products do not trigger this.)
+                    logger.warning(
+                        "%s: page %d of %s is identical to the previous page "
+                        "(theme fallback listing?); ending the category",
+                        self.source.slug,
+                        page,
+                        category_url,
+                    )
+                    break
+                previous_page_ids = page_ids
                 for listing in page_listings:
                     if listing.external_id not in seen:
                         seen.add(listing.external_id)
