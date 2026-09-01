@@ -147,7 +147,9 @@ def test_empty_priority_category_slug_is_rejected(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("bad_value", ["eighty", "0", "-3", "true"])
 def test_invalid_max_catalog_pages_is_rejected(tmp_path: Path, bad_value: str) -> None:
-    broken = CRAWL_TUNED_YAML.replace("max_catalog_pages: 160", f"max_catalog_pages: {bad_value}", 1)
+    broken = CRAWL_TUNED_YAML.replace(
+        "max_catalog_pages: 160", f"max_catalog_pages: {bad_value}", 1
+    )
     with pytest.raises(ValueError, match="max_catalog_pages"):
         load_sources(write_yaml(tmp_path, broken))
 

@@ -63,6 +63,8 @@ class FakeAdapter:
         listings_by_query: dict[str, list[NormalizedListing]] | None = None,
         skipped_by_query: dict[str, int] | None = None,
         error: Exception | None = None,
+        pages_fetched: int | None = None,
+        budget_exhausted: bool | None = None,
     ) -> None:
         self.source = make_source(slug)
         self.skipped = 0
@@ -71,6 +73,12 @@ class FakeAdapter:
         self._listings = listings_by_query or {}
         self._skipped = skipped_by_query or {}
         self._error = error
+        # Crawl-based adapters expose these attributes; search-based ones do
+        # not, so the base fake only grows them when the test asks for them.
+        if pages_fetched is not None:
+            self.pages_fetched = pages_fetched
+        if budget_exhausted is not None:
+            self.budget_exhausted = budget_exhausted
 
     def fetch(self, query: str) -> list[NormalizedListing]:
         self.fetch_calls.append(query)
@@ -304,6 +312,50 @@ def test_format_report_is_grep_able(session: Session) -> None:
     assert "summary: sources_ok=1/2 fetched=2 inserted=2 already_stored=0 result=success" in text
 
 
+def test_crawl_coverage_is_reported_for_crawl_based_sources(session: Session) -> None:
+    add_item(session, "modulo a34")
+    crawler = FakeAdapter(
+        "crawler",
+        listings_by_query={"modulo a34": [make_listing("crawler", "1", "Modulo Samsung A34")]},
+        pages_fetched=12,
+        budget_exhausted=False,
+    )
+    shop_a, _ = happy_adapters()
+
+    report = run_ingestion(session, [crawler, shop_a])
+
+    crawl_report, search_report = report.sources
+    assert crawl_report.pages_fetched == 12
+    assert crawl_report.budget_exhausted is False
+    # Search-based adapters have no crawl attributes: the fields stay unset.
+    assert search_report.pages_fetched is None
+    assert search_report.budget_exhausted is None
+
+    text = format_report(report)
+    crawler_line = next(line for line in text.splitlines() if "source=crawler" in line)
+    assert "pages=12 crawl=full" in crawler_line
+    assert crawler_line.count("\n") == 0
+    shop_line = next(line for line in text.splitlines() if "source=shop-a" in line)
+    assert "pages=" not in shop_line
+    assert "crawl=" not in shop_line
+
+
+def test_exhausted_crawl_budget_is_reported_as_partial(session: Session) -> None:
+    add_item(session, "modulo a34")
+    crawler = FakeAdapter(
+        "crawler",
+        listings_by_query={"modulo a34": [make_listing("crawler", "1", "Modulo Samsung A34")]},
+        pages_fetched=80,
+        budget_exhausted=True,
+    )
+
+    text = format_report(run_ingestion(session, [crawler]))
+
+    crawler_line = next(line for line in text.splitlines() if "source=crawler" in line)
+    assert "pages=80 crawl=partial" in crawler_line
+    assert "status=ok" in crawler_line
+
+
 def test_save_failure_mid_transaction_is_rolled_back_and_next_source_persists(
     session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -420,7 +472,7 @@ def test_main_exit_0_and_closes_adapters(monkeypatch, capsys, cli_db) -> None:
     monkeypatch.setattr(repuestos_radar.ingest, "load_sources", lambda: [])
     monkeypatch.setattr(repuestos_radar.ingest, "build_adapters", lambda sources: [shop_a, shop_b])
 
-    exit_code = main()
+    exit_code = main([])
 
     assert exit_code == 0
     assert shop_a.closed and shop_b.closed
@@ -435,11 +487,74 @@ def test_main_exit_1_when_every_source_fails(monkeypatch, capsys, cli_db) -> Non
     monkeypatch.setattr(repuestos_radar.ingest, "load_sources", lambda: [])
     monkeypatch.setattr(repuestos_radar.ingest, "build_adapters", lambda sources: [dead])
 
-    exit_code = main()
+    exit_code = main([])
 
     assert exit_code == 1
     assert dead.closed
     assert "result=failure" in capsys.readouterr().out
+
+
+def patch_registry(monkeypatch, slugs: list[str]) -> list[list[str]]:
+    """Fake registry + adapter factory; returns the slug lists build_adapters saw."""
+    built: list[list[str]] = []
+
+    def fake_build(sources):
+        built.append([s.slug for s in sources])
+        return [FakeAdapter(s.slug) for s in sources]
+
+    monkeypatch.setattr(
+        repuestos_radar.ingest, "load_sources", lambda: [make_source(slug) for slug in slugs]
+    )
+    monkeypatch.setattr(repuestos_radar.ingest, "build_adapters", fake_build)
+    return built
+
+
+def test_main_source_filter_runs_only_the_named_source(monkeypatch, capsys, cli_db) -> None:
+    seed_item(cli_db, "modulo a34")
+    built = patch_registry(monkeypatch, ["shop-a", "shop-b", "shop-c"])
+
+    exit_code = main(["--source", "shop-b"])
+
+    assert exit_code == 0
+    assert built == [["shop-b"]]
+    out = capsys.readouterr().out
+    assert "source=shop-b" in out
+    assert "source=shop-a" not in out
+
+
+def test_main_source_filter_is_repeatable_and_keeps_registry_order(
+    monkeypatch, capsys, cli_db
+) -> None:
+    seed_item(cli_db, "modulo a34")
+    built = patch_registry(monkeypatch, ["shop-a", "shop-b", "shop-c"])
+
+    exit_code = main(["--source", "shop-c", "--source", "shop-a", "--source", "shop-a"])
+
+    assert exit_code == 0
+    assert built == [["shop-a", "shop-c"]]  # registry order, duplicates folded
+
+
+def test_main_unknown_source_slug_aborts_before_any_fetch(monkeypatch, capsys, cli_db) -> None:
+    seed_item(cli_db, "modulo a34")
+    built = patch_registry(monkeypatch, ["shop-a", "shop-b"])
+
+    exit_code = main(["--source", "shop-a", "--source", "nope"])
+
+    assert exit_code == 1
+    assert built == []  # no adapters were built, nothing was fetched
+    out = capsys.readouterr().out
+    assert "ingestion aborted (config error)" in out
+    assert "nope" in out
+
+
+def test_main_without_source_flag_runs_everything(monkeypatch, capsys, cli_db) -> None:
+    seed_item(cli_db, "modulo a34")
+    built = patch_registry(monkeypatch, ["shop-a", "shop-b"])
+
+    exit_code = main([])
+
+    assert exit_code == 0
+    assert built == [["shop-a", "shop-b"]]
 
 
 def test_main_exit_1_on_config_error(monkeypatch, capsys) -> None:
@@ -448,7 +563,7 @@ def test_main_exit_1_on_config_error(monkeypatch, capsys) -> None:
 
     monkeypatch.setattr(repuestos_radar.ingest, "load_sources", bad_registry)
 
-    assert main() == 1
+    assert main([]) == 1
     assert "ingestion aborted (config error)" in capsys.readouterr().out
 
 
@@ -458,7 +573,7 @@ def test_main_exit_1_on_yaml_syntax_error(monkeypatch, capsys) -> None:
 
     monkeypatch.setattr(repuestos_radar.ingest, "load_sources", bad_yaml)
 
-    assert main() == 1
+    assert main([]) == 1
     out = capsys.readouterr().out
     assert "ingestion aborted (config error)" in out
     # The multi-line YAML message is collapsed onto the single abort line.
@@ -472,6 +587,6 @@ def test_main_exit_1_when_database_unreachable(monkeypatch, capsys, tmp_path) ->
     monkeypatch.setattr(repuestos_radar.ingest, "load_sources", lambda: [])
     monkeypatch.setattr(repuestos_radar.ingest, "build_adapters", lambda sources: [shop_a])
 
-    assert main() == 1
+    assert main([]) == 1
     assert shop_a.closed  # the ExitStack still closes adapters on the way out
     assert "ingestion aborted (database error)" in capsys.readouterr().out
