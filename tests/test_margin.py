@@ -12,12 +12,15 @@ from repuestos_radar.margin import margins_for
 from repuestos_radar.models import ServicePrice, TrackedItem
 from repuestos_radar.services import (
     ADDED,
+    CHANGED,
+    NOT_FOUND,
     UNCHANGED,
     UPDATED,
     add_service,
     list_services,
     main,
     remove_service,
+    set_price,
 )
 
 
@@ -131,6 +134,28 @@ def test_add_service_identical_readd_is_a_no_op(session, item):
     assert service.price_ars == Decimal("75000")
 
 
+def test_set_price_changes_and_moves_updated_at(session, item):
+    service, _ = add_service(session, "Cambio módulo A32", item.id, Decimal("75000"))
+    session.commit()
+    first_updated = service.updated_at
+    changed, status = set_price(session, service.id, Decimal("80000"))
+    assert status == CHANGED
+    session.commit()
+    assert changed.price_ars == Decimal("80000")
+    assert changed.updated_at != first_updated  # onupdate fired
+
+
+def test_set_price_unchanged_and_not_found(session, item):
+    service, _ = add_service(session, "Cambio módulo A32", item.id, Decimal("75000"))
+    session.commit()
+    first_updated = service.updated_at
+    same, status = set_price(session, service.id, Decimal("75000"))
+    assert status == UNCHANGED
+    session.commit()
+    assert same.updated_at == first_updated  # no UPDATE, timestamp untouched
+    assert set_price(session, 42, Decimal("80000")) == (None, NOT_FOUND)
+
+
 def test_remove_service(session, item):
     service, _ = add_service(session, "Cambio módulo A32", item.id, Decimal("75000"))
     session.flush()
@@ -183,6 +208,20 @@ def test_main_readd_identical_says_nothing_to_do(capsys, cli_db) -> None:
     out = capsys.readouterr().out
     assert "nothing to do" in out
     assert "replaced" not in out
+
+
+def test_main_set_price_changed_unchanged_and_missing(capsys, cli_db) -> None:
+    item_id = _seed_item(cli_db)
+    assert main(["add", "Cambio módulo A32", "--item", str(item_id), "--price", "75000"]) == 0
+    capsys.readouterr()
+    assert main(["set-price", "1", "80000"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("changed:")
+    assert "price=80000.00" in out
+    assert main(["set-price", "1", "80000"]) == 0
+    assert "nothing to do" in capsys.readouterr().out
+    assert main(["set-price", "42", "80000"]) == 1
+    assert "no service price with id 42" in capsys.readouterr().out
 
 
 def test_main_add_unknown_tracked_item_exits_one(capsys, cli_db) -> None:
