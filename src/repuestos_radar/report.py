@@ -76,7 +76,7 @@ def render_report(session: Session, today: date | None = None) -> str:
             # A day can exist with only rejected listings (latest_day counts
             # them), so an empty day here is ordinary — say so, don't skip.
             lines.append(f"=== {item.query} ===")
-            lines.append(f"  sin datos de hoy para {item.query}")
+            lines.append("  sin datos de hoy")
             continue
 
         lines.append(f"=== {item.query} — precios del {_format_day(day)} ===")
@@ -97,8 +97,10 @@ def _render_tier(
 ) -> list[str]:
     lines = [f"{TIER_LABELS_ES[analysis.tier]}:"]
 
-    # A group is never all-outliers (nothing at the median gets flagged), so
-    # there is always a trustworthy cheapest offer to call the best price.
+    # A group is never all-outliers, so there is always a trustworthy cheapest
+    # offer to call the best price. This rests on prices being positive
+    # (enforced by the schema check at ingestion): with positive prices the
+    # median-side offer can never sit under half or over double the median.
     best = next(offer for offer in analysis.offers if not offer.outlier)
     lines.append(
         f"  mejor precio: {format_ars(best.price)} en "
@@ -114,7 +116,7 @@ def _render_tier(
             )
         lines.append(fair)
     else:
-        lines.append("  un solo negocio lo vende hoy — sin precio de referencia")
+        lines.append("  una sola tienda lo vende hoy — sin precio de referencia")
 
     for offer in analysis.offers:
         store = store_names.get(offer.source_slug, offer.source_slug)
@@ -130,12 +132,15 @@ def _render_tier(
     for point in tier_trends(session, tracked_item_id, analysis.tier, day):
         if not point.direction:
             continue
+        # The compared day can be up to 2 days off the nominal window — state
+        # the real gap, never "hace 7 días" for an 8-day-old price.
+        days_ago = (day - point.compared_date).days
         if point.direction == "=":
-            lines.append(f"  tendencia: = sin cambios vs hace {point.days_back} días")
+            lines.append(f"  tendencia: sin cambios vs hace {days_ago} días")
         else:
             lines.append(
                 f"  tendencia: {point.direction} {_format_pct(point.pct_change)}% "
-                f"vs hace {point.days_back} días"
+                f"vs hace {days_ago} días"
             )
     return lines
 
@@ -161,13 +166,13 @@ def _render_margins(
             if tier_margin.margin >= 0:
                 lines.append(
                     f"  {service.label}: ganás {format_ars(tier_margin.margin)} "
-                    f"usando {tier_label} de {store}"
+                    f"con el repuesto de {store} ({tier_label})"
                 )
             else:
                 lines.append(
                     f"  ⚠ {service.label}: perdés {format_ars(-tier_margin.margin)} "
-                    f"usando {tier_label} de {store} — el repuesto cuesta más que "
-                    "lo que se cobra"
+                    f"con el repuesto de {store} ({tier_label}) — el repuesto "
+                    "cuesta más de lo que cobrás"
                 )
     if lines:
         lines.insert(0, "Márgenes por reparación:")

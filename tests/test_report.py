@@ -43,6 +43,8 @@ def test_format_ars_argentine_style():
     assert format_ars(Decimal("20700")) == "$20.700"
     assert format_ars(Decimal("1449999.50")) == "$1.450.000"
     assert format_ars(Decimal("900")) == "$900"
+    # .50 rounds up: HALF_UP, not banker's HALF_EVEN (which would give $20.700).
+    assert format_ars(Decimal("20700.50")) == "$20.701"
 
 
 def test_report_renders_sections_margins_and_warnings(session):
@@ -72,6 +74,9 @@ def test_report_renders_sections_margins_and_warnings(session):
     assert "revisar" in text  # low-confidence flagged in words
     assert "Cambio módulo A32" in text
     assert "$34.000" in text  # margin with the cheapest OLED
+    # Tier label in apposition so every tier (incl. "Sin calidad indicada")
+    # parses as Spanish.
+    assert "con el repuesto de Celuphone (OLED)" in text
     assert "gofix" not in text.replace("GoFix", "")  # store display names, not slugs
 
 
@@ -118,3 +123,22 @@ def test_report_flags_a_negative_margin(session):
     text = render_report(session, today=today)
     assert "perdés" in text  # the report says it plainly, no "$-5.000"
     assert "$5.000" in text
+    assert "más de lo que cobrás" in text  # voseo, standard comparative
+    assert "una sola tienda" in text  # "tiendas" everywhere, never "negocio"
+
+
+def test_trend_line_states_the_actual_day_gap(session):
+    # The compared day can be up to 2 days off the nominal window; the report
+    # must state the real gap, not claim "hace 7 días" for an 8-day-old price.
+    item = TrackedItem(query="modulo samsung a32")
+    session.add(item)
+    session.flush()
+    today = date(2026, 9, 1)
+    for source in ("novocell", "celuphone"):
+        _store_listing(session, item.id, source, "40000", date(2026, 8, 24))
+        _store_listing(session, item.id, source, "44000", today)
+    session.commit()
+
+    text = render_report(session, today=today)
+    assert "hace 8 días" in text
+    assert "hace 7 días" not in text
