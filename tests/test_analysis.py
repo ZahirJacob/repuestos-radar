@@ -12,6 +12,7 @@ from repuestos_radar.analysis import (
     analyze_item,
     latest_day,
     listings_for_day,
+    tier_trends,
 )
 from repuestos_radar.db import get_engine, get_session_factory, init_db
 from repuestos_radar.models import Listing, TrackedItem
@@ -204,3 +205,23 @@ def test_a32_two_tier_spread_from_real_data():
     assert by_tier["original"].fair_price is None
     # Display order: better tiers first.
     assert [a.tier for a in analyses] == ["original", "oled", "incell"]
+
+
+def test_trend_compares_against_nearest_stored_day(session):
+    item = TrackedItem(query="modulo samsung a32")
+    session.add(item)
+    session.flush()
+    today = date(2026, 9, 1)
+    # 8 days back (within +-2 of the 7-day target): OLED fair price 40000.
+    for source, price in (("novocell", "40000"), ("celuphone", "40000")):
+        _store_listing(session, item.id, source, price, date(2026, 8, 24), title="Modulo A32 OLED")
+    # Today: OLED fair price 44000 -> +10% vs the 7-day point.
+    for source, price in (("novocell", "44000"), ("celuphone", "44000")):
+        _store_listing(session, item.id, source, price, today, title="Modulo A32 OLED")
+    session.commit()
+
+    week, month = tier_trends(session, item.id, "oled", today)
+    assert (week.days_back, week.direction) == (7, "↑")
+    assert week.compared_date == date(2026, 8, 24)
+    assert week.pct_change == Decimal("10.0")
+    assert (month.direction, month.pct_change) == ("", None)  # no data ~30 days back

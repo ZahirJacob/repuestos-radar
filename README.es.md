@@ -208,3 +208,28 @@ python -m repuestos_radar.tracked resume 3
 `add` con una búsqueda ya seguida te lo avisa en vez de fallar, y reactiva el ítem si estaba
 pausado. Los ítems se pausan, no se borran: un ítem pausado conserva su historial de precios y
 simplemente queda afuera de la ingesta diaria.
+
+## Reporte diario y lista de precios de reparaciones
+
+Dos CLIs de desarrollo más trabajan sobre el historial guardado (mismo contrato de `DATABASE_URL`
+que el runner). Las dos son herramientas internas del equipo — la cara para el cliente es el
+dashboard de M4, que va a mostrar los mismos números.
+
+```bash
+python -m repuestos_radar.report
+```
+
+Imprime el resumen del día en español: por búsqueda seguida y nivel de calidad, la tienda más
+barata, un precio justo estimado (la mediana entre tiendas, con su rango cuando pocas tiendas
+venden el repuesto), avisos sobre coincidencias dudosas y precios sospechosos, tendencias a 7 y 30
+días, y el margen que deja cada reparación a los precios de repuestos de hoy.
+
+```bash
+python -m repuestos_radar.services add "Cambio módulo A32" --item 3 --price 75000
+python -m repuestos_radar.services list
+python -m repuestos_radar.services set-price 2 80000
+python -m repuestos_radar.services remove 2
+```
+
+Gestiona la lista de precios de reparaciones de la que salen esos márgenes: lo que el taller cobra
+por cada reparación, vinculada a la búsqueda seguida cuyo repuesto consume esa reparación.

@@ -114,6 +114,9 @@ Deliberately simple and conservative (groups are small):
 - **Margin per (repair, tier)** = service price − cheapest non-outlier part
   price in that tier, so the answer is naturally tier-aware: "con incell
   ganás $54.300; con OLED $41.200".
+- Amendment (PR #17): the margin basis must also be a sure match
+  (`relevance = match`) — a low-confidence listing is never the basis of a
+  margin, since the margin line carries no "revisar" flag.
 - Maintained now via an internal CLI (`python -m repuestos_radar.services`
   add/list/set-price/remove — mirroring the `tracked` CLI patterns); the
   user-facing editor is the M4 admin page (phone-first). The CLI is a team

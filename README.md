@@ -193,3 +193,28 @@ python -m repuestos_radar.tracked resume 3
 `add` on an already-tracked query says so instead of failing, and reactivates the item if it was
 paused. Items are paused rather than deleted: a paused item keeps its price history and is simply
 skipped by the daily ingestion.
+
+## Daily report and repair price list
+
+Two more dev CLIs sit on top of the stored history (same `DATABASE_URL` contract as the runner).
+Both are internal team tools — the client-facing surface is the M4 dashboard, which will show the
+same numbers.
+
+```bash
+python -m repuestos_radar.report
+```
+
+Prints the day's summary in Spanish: per tracked item and quality tier, the cheapest store, a
+fair-price estimate (median across stores, with its range when few stores sell the part), warnings
+about dubious matches and suspicious prices, 7/30-day trends, and the margin each repair leaves at
+today's part prices.
+
+```bash
+python -m repuestos_radar.services add "Cambio módulo A32" --item 3 --price 75000
+python -m repuestos_radar.services list
+python -m repuestos_radar.services set-price 2 80000
+python -m repuestos_radar.services remove 2
+```
+
+Manages the repair price list those margins are computed from: what the shop charges for each
+repair, linked to the tracked item whose part the repair consumes.

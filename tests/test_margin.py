@@ -107,6 +107,25 @@ def test_all_outlier_tier_is_skipped():
     assert oled.part_price == Decimal("44000")  # outlier never the margin basis
 
 
+def test_low_confidence_offer_is_never_the_margin_basis():
+    # A dubious match may be the cheapest, but quoting a margin on it would
+    # promise money the part might not deliver — use the cheapest sure match.
+    analyses = analyze_item(
+        [
+            row("gofix", "Modulo A32 OLED", "40000", relevance="low_confidence"),
+            row("celuphone", "Modulo A32 OLED", "41000"),
+        ]
+    )
+    (oled,) = margins_for(Decimal("75000"), analyses)
+    assert oled.part_source == "celuphone"
+    assert oled.margin == Decimal("34000")
+
+
+def test_all_low_confidence_tier_is_skipped():
+    analyses = analyze_item([row("gofix", "Modulo A32 OLED", "40000", relevance="low_confidence")])
+    assert margins_for(Decimal("75000"), analyses) == []
+
+
 def test_add_service_and_update_on_same_label(session, item):
     service, status = add_service(session, "Cambio módulo A32", item.id, Decimal("75000"))
     assert status == ADDED
