@@ -103,6 +103,40 @@ def test_small_groups_are_never_flagged():
     assert oled.fair_price == Decimal("41000")
 
 
+def test_all_but_one_flagged_degrades_to_single_store():
+    # Wild spread: median is 100, so <50 and >200 are flagged — everything
+    # but the median offer. The basis must degrade honestly to single-store.
+    listings = [
+        row("novocell", "Modulo A32 OLED", "1"),
+        row("celuphone", "Modulo A32 OLED", "10"),
+        row("tienda-movil", "Modulo A32 OLED", "100"),
+        row("gofix", "Modulo A32 OLED", "1000"),
+        row("mdrepuestos", "Modulo A32 OLED", "10000"),
+    ]
+    (oled,) = analyze_item(listings)
+    assert len(oled.offers) == 5  # nothing hidden
+    assert [o.source_slug for o in oled.offers if not o.outlier] == ["tienda-movil"]
+    assert oled.store_count == 1
+    assert oled.fair_price is None
+    assert oled.basis == BASIS_SINGLE_STORE
+
+
+def test_prices_exactly_at_outlier_boundaries_are_not_flagged():
+    # Median is 40000; the thresholds are strict (<0.5x, >2x), so exactly
+    # 0.5x (20000) and exactly 2x (80000) stay unflagged and contribute.
+    listings = [
+        row("novocell", "Modulo A32 OLED", "20000"),
+        row("celuphone", "Modulo A32 OLED", "30000"),
+        row("tienda-movil", "Modulo A32 OLED", "50000"),
+        row("gofix", "Modulo A32 OLED", "80000"),
+    ]
+    (oled,) = analyze_item(listings)
+    assert not any(o.outlier for o in oled.offers)
+    assert oled.store_count == 4
+    assert oled.fair_price == Decimal("40000")
+    assert oled.basis == BASIS_MEDIAN
+
+
 @pytest.fixture()
 def session():
     engine = get_engine("sqlite:///:memory:")
