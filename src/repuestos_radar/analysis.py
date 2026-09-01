@@ -7,7 +7,7 @@ imports these same functions.
 
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from statistics import median
 
@@ -170,3 +170,71 @@ def listings_for_day(session: Session, tracked_item_id: int, day: date) -> list[
             )
         )
     )
+
+
+TREND_WINDOWS = (7, 30)
+_TREND_TOLERANCE_DAYS = 2
+_FLAT_THRESHOLD_PCT = Decimal("1")
+
+
+@dataclass(frozen=True, slots=True)
+class TrendPoint:
+    """Fair price today vs. ~N days ago. Empty direction = nothing to compare."""
+
+    days_back: int
+    compared_date: date | None
+    direction: str  # "↑" | "↓" | "=" | ""
+    pct_change: Decimal | None
+
+
+def tier_trends(session: Session, tracked_item_id: int, tier: str, today: date) -> list[TrendPoint]:
+    """Trend points for the standard windows, tolerant of missing days.
+
+    Daily runs can fail; each window compares against the nearest stored day
+    within +-_TREND_TOLERANCE_DAYS of the target, or reports "no data".
+    """
+    today_fair = _fair_price_on(session, tracked_item_id, tier, today)
+    points = []
+    for days_back in TREND_WINDOWS:
+        target = today - timedelta(days=days_back)
+        compared_date, past_fair = _nearest_fair_price(session, tracked_item_id, tier, target)
+        if today_fair is None or past_fair is None:
+            points.append(TrendPoint(days_back, None, "", None))
+            continue
+        pct = ((today_fair - past_fair) / past_fair * 100).quantize(Decimal("0.1"))
+        if abs(pct) < _FLAT_THRESHOLD_PCT:
+            direction = "="
+        elif pct > 0:
+            direction = "↑"
+        else:
+            direction = "↓"
+        points.append(TrendPoint(days_back, compared_date, direction, pct))
+    return points
+
+
+def _fair_price_on(session: Session, tracked_item_id: int, tier: str, day: date) -> Decimal | None:
+    for analysis in analyze_item(listings_for_day(session, tracked_item_id, day)):
+        if analysis.tier == tier:
+            return analysis.fair_price
+    return None
+
+
+def _nearest_fair_price(
+    session: Session, tracked_item_id: int, tier: str, target: date
+) -> tuple[date | None, Decimal | None]:
+    stored_days = session.scalars(
+        select(Listing.fetched_date)
+        .where(
+            Listing.tracked_item_id == tracked_item_id,
+            Listing.fetched_date.between(
+                target - timedelta(days=_TREND_TOLERANCE_DAYS),
+                target + timedelta(days=_TREND_TOLERANCE_DAYS),
+            ),
+        )
+        .distinct()
+    ).all()
+    for day in sorted(stored_days, key=lambda d: (abs((d - target).days), d)):
+        fair = _fair_price_on(session, tracked_item_id, tier, day)
+        if fair is not None:
+            return day, fair
+    return None, None
