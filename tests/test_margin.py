@@ -12,6 +12,7 @@ from repuestos_radar.margin import margins_for
 from repuestos_radar.models import ServicePrice, TrackedItem
 from repuestos_radar.services import (
     ADDED,
+    UNCHANGED,
     UPDATED,
     add_service,
     list_services,
@@ -112,6 +113,24 @@ def test_add_service_and_update_on_same_label(session, item):
     assert len(list_services(session)) == 1
 
 
+def test_add_service_relinks_item_on_readd(session, item):
+    other = TrackedItem(query="modulo samsung a52")
+    session.add(other)
+    session.flush()
+    add_service(session, "Cambio módulo A32", item.id, Decimal("75000"))
+    service, status = add_service(session, "Cambio módulo A32", other.id, Decimal("80000"))
+    assert status == UPDATED
+    assert service.tracked_item_id == other.id  # --item is honored, not discarded
+    assert service.price_ars == Decimal("80000")
+
+
+def test_add_service_identical_readd_is_a_no_op(session, item):
+    add_service(session, "Cambio módulo A32", item.id, Decimal("75000"))
+    service, status = add_service(session, "Cambio módulo A32", item.id, Decimal("75000"))
+    assert status == UNCHANGED
+    assert service.price_ars == Decimal("75000")
+
+
 def test_remove_service(session, item):
     service, _ = add_service(session, "Cambio módulo A32", item.id, Decimal("75000"))
     session.flush()
@@ -154,6 +173,16 @@ def test_main_add_list_remove_roundtrip(capsys, cli_db) -> None:
     capsys.readouterr()
     assert main(["list"]) == 0
     assert "no service prices" in capsys.readouterr().out
+
+
+def test_main_readd_identical_says_nothing_to_do(capsys, cli_db) -> None:
+    item_id = _seed_item(cli_db)
+    assert main(["add", "Cambio módulo A32", "--item", str(item_id), "--price", "75000"]) == 0
+    capsys.readouterr()
+    assert main(["add", "Cambio módulo A32", "--item", str(item_id), "--price", "75000"]) == 0
+    out = capsys.readouterr().out
+    assert "nothing to do" in out
+    assert "replaced" not in out
 
 
 def test_main_add_unknown_tracked_item_exits_one(capsys, cli_db) -> None:

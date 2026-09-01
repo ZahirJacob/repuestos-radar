@@ -10,9 +10,10 @@ price list is managed:
     python -m repuestos_radar.services set-price 2 80000
     python -m repuestos_radar.services remove 2
 
-``add`` on an existing label updates its price instead of failing. ``remove``
-deletes the row — unlike tracked items, a price-list entry has no history
-worth keeping.
+``add`` is an upsert: on an existing label it sets the price AND the tracked
+item link to the given values (a friendly no-op when both already match).
+``remove`` deletes the row — unlike tracked items, a price-list entry has no
+history worth keeping.
 
 Same database contract as the ingestion runner: ``DATABASE_URL`` from the
 environment (or ``.env``), tables created at startup if missing.
@@ -40,10 +41,12 @@ REMOVED = "removed"
 def add_service(
     session: Session, label: str, tracked_item_id: int, price: Decimal
 ) -> tuple[ServicePrice, str]:
-    """Add a repair to the price list, or reprice it if the label exists.
+    """Upsert a repair by label: add it, or point an existing label at the
+    given item and price.
 
     Returns the service plus a status: ADDED for a new row, UPDATED when an
-    existing label had its price replaced. The caller owns the commit.
+    existing label had its price or item link replaced, UNCHANGED when the
+    given values already match (a no-op). The caller owns the commit.
     """
     existing = session.scalars(
         select(ServicePrice).where(ServicePrice.label == label)
@@ -53,7 +56,10 @@ def add_service(
         session.add(service)
         session.flush()  # assign the id so the caller can print it
         return service, ADDED
+    if existing.price_ars == price and existing.tracked_item_id == tracked_item_id:
+        return existing, UNCHANGED
     existing.price_ars = price
+    existing.tracked_item_id = tracked_item_id
     return existing, UPDATED
 
 
@@ -131,7 +137,8 @@ def _cmd_add(session: Session, args: argparse.Namespace) -> int:
     session.commit()
     messages = {
         ADDED: "added",
-        UPDATED: "updated (label already existed — price replaced)",
+        UPDATED: "updated (label already existed — price and item set to the given values)",
+        UNCHANGED: "already in the price list with those values — nothing to do",
     }
     print(f"{messages[status]}: {_describe(service)}")
     return 0
