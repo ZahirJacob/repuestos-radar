@@ -1,9 +1,20 @@
 """Tests for the compute-on-demand analysis layer."""
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 
-from repuestos_radar.analysis import BASIS_MEDIAN, BASIS_SINGLE_STORE, analyze_item
+import pytest
+
+from repuestos_radar.analysis import (
+    BASIS_MEDIAN,
+    BASIS_SINGLE_STORE,
+    analyze_item,
+    latest_day,
+    listings_for_day,
+)
+from repuestos_radar.db import get_engine, get_session_factory, init_db
+from repuestos_radar.models import Listing, TrackedItem
 from repuestos_radar.quality import TIER_OLED, TIER_UNLABELED
 
 
@@ -90,3 +101,53 @@ def test_small_groups_are_never_flagged():
     (oled,) = analyze_item(listings)
     assert not any(o.outlier for o in oled.offers)
     assert oled.fair_price == Decimal("41000")
+
+
+@pytest.fixture()
+def session():
+    engine = get_engine("sqlite:///:memory:")
+    init_db(engine)
+    with get_session_factory(engine)() as session:
+        yield session
+
+
+def _store_listing(
+    session, item_id, source, price, day, relevance="match", title="Modulo A32 OLED"
+):
+    session.add(
+        Listing(
+            tracked_item_id=item_id,
+            source_slug=source,
+            external_id=f"{source}-{price}",
+            title=title,
+            price=Decimal(price),
+            currency="ARS",
+            condition="unknown",
+            url="https://example.test/p",
+            fetched_date=day,
+            relevance=relevance,
+            relevance_score=1.0,
+        )
+    )
+
+
+def test_latest_day_and_day_filtering(session):
+    item = TrackedItem(query="modulo samsung a32")
+    session.add(item)
+    session.flush()
+    _store_listing(session, item.id, "novocell", "45000", date(2026, 8, 31))
+    _store_listing(session, item.id, "novocell", "46000", date(2026, 9, 1))
+    _store_listing(session, item.id, "celuphone", "41000", date(2026, 9, 1))
+    _store_listing(session, item.id, "gofix", "40000", date(2026, 9, 1), relevance="reject")
+    session.commit()
+
+    assert latest_day(session, item.id) == date(2026, 9, 1)
+    rows = listings_for_day(session, item.id, date(2026, 9, 1))
+    assert sorted(r.source_slug for r in rows) == ["celuphone", "novocell"]  # reject excluded
+
+
+def test_latest_day_none_when_empty(session):
+    item = TrackedItem(query="bateria iphone 11")
+    session.add(item)
+    session.commit()
+    assert latest_day(session, item.id) is None

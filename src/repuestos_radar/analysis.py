@@ -7,9 +7,14 @@ imports these same functions.
 
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
+from datetime import date
 from decimal import Decimal
 from statistics import median
 
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from repuestos_radar.models import Listing
 from repuestos_radar.quality import (
     DEVICE_NEW,
     DEVICE_REFURBISHED,
@@ -141,4 +146,27 @@ def _flag_outliers(offers: tuple[StoreOffer, ...]) -> tuple[StoreOffer, ...]:
             ),
         )
         for offer in offers
+    )
+
+
+RELEVANT = ("match", "low_confidence")
+
+
+def latest_day(session: Session, tracked_item_id: int) -> date | None:
+    """Most recent day this item has any stored listing, or None."""
+    return session.scalar(
+        select(func.max(Listing.fetched_date)).where(Listing.tracked_item_id == tracked_item_id)
+    )
+
+
+def listings_for_day(session: Session, tracked_item_id: int, day: date) -> list[Listing]:
+    """One day's relevant listings for one item (reject/unclassified excluded)."""
+    return list(
+        session.scalars(
+            select(Listing).where(
+                Listing.tracked_item_id == tracked_item_id,
+                Listing.fetched_date == day,
+                Listing.relevance.in_(RELEVANT),
+            )
+        )
     )
