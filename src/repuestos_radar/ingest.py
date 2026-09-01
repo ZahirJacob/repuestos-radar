@@ -100,6 +100,18 @@ def _one_line(exc: BaseException) -> str:
     return " ".join(str(exc).split())
 
 
+def _copy_crawl_coverage(report: SourceReport, adapter: Adapter) -> None:
+    """Copy the adapter's crawl coverage onto its report, if it exposes any.
+
+    Crawl-based adapters expose ``pages_fetched``/``budget_exhausted`` (stable
+    after the first fetch crawls the catalog, and meaningful even when the
+    crawl itself failed part-way); search-based adapters have no such
+    attributes and the fields stay None.
+    """
+    report.pages_fetched = getattr(adapter, "pages_fetched", None)
+    report.budget_exhausted = getattr(adapter, "budget_exhausted", None)
+
+
 def _count_relevance(report: SourceReport, classified: list[ClassifiedListing]) -> None:
     for item in classified:
         if item.result.relevance is Relevance.MATCH:
@@ -137,10 +149,14 @@ def run_ingestion(session: Session, adapters: Sequence[Adapter]) -> RunReport:
             except AdapterError as exc:
                 session.rollback()
                 source_report.failure = _one_line(exc)
+                # A failed crawl still reports how far it got — that is
+                # exactly the run where the coverage is most useful.
+                _copy_crawl_coverage(source_report, adapter)
                 break
             except Exception as exc:  # unexpected: isolate it like an AdapterError
                 session.rollback()
                 source_report.failure = f"unexpected {type(exc).__name__}: {_one_line(exc)}"
+                _copy_crawl_coverage(source_report, adapter)
                 break
             source_report.items_queried += 1
             source_report.listings_fetched += len(listings)
@@ -148,11 +164,7 @@ def run_ingestion(session: Session, adapters: Sequence[Adapter]) -> RunReport:
             source_report.inserted += inserted
             source_report.already_stored += len(classified) - inserted
             _count_relevance(source_report, classified)
-            # Crawl-based adapters expose their crawl coverage (the values are
-            # stable after the first fetch crawls the catalog); search-based
-            # adapters have no such attributes and the fields stay None.
-            source_report.pages_fetched = getattr(adapter, "pages_fetched", None)
-            source_report.budget_exhausted = getattr(adapter, "budget_exhausted", None)
+            _copy_crawl_coverage(source_report, adapter)
     return report
 
 

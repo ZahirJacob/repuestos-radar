@@ -356,6 +356,44 @@ def test_exhausted_crawl_budget_is_reported_as_partial(session: Session) -> None
     assert "status=ok" in crawler_line
 
 
+def test_failed_crawl_still_reports_its_coverage(session: Session) -> None:
+    """A source whose crawl dies mid-way must still report how far it got —
+    that is exactly the run where pages= is most useful."""
+    add_item(session, "modulo a34")
+    crawler = FakeAdapter(
+        "crawler",
+        error=AdapterError("crawler: giving up after 3 attempts", slug="crawler"),
+        pages_fetched=37,
+        budget_exhausted=False,
+    )
+
+    report = run_ingestion(session, [crawler])
+
+    (crawl_report,) = report.sources
+    assert crawl_report.failure is not None
+    assert crawl_report.pages_fetched == 37
+    assert crawl_report.budget_exhausted is False
+    line = next(line for line in format_report(report).splitlines() if "source=crawler" in line)
+    assert "pages=37 crawl=full" in line
+    assert "status=failed" in line
+
+
+def test_unexpected_failure_also_reports_crawl_coverage(session: Session) -> None:
+    add_item(session, "modulo a34")
+    crawler = FakeAdapter(
+        "crawler", error=RuntimeError("boom"), pages_fetched=80, budget_exhausted=True
+    )
+
+    report = run_ingestion(session, [crawler])
+
+    (crawl_report,) = report.sources
+    assert crawl_report.pages_fetched == 80
+    assert crawl_report.budget_exhausted is True
+    line = next(line for line in format_report(report).splitlines() if "source=crawler" in line)
+    assert "pages=80 crawl=partial" in line
+    assert "status=failed" in line
+
+
 def test_save_failure_mid_transaction_is_rolled_back_and_next_source_persists(
     session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
