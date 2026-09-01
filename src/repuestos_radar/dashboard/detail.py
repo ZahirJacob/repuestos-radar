@@ -129,10 +129,10 @@ def render() -> None:
                 if len(series) >= 2:
                     frame = pd.DataFrame(
                         {
-                            "día": [d for d, _ in series],
-                            "precio justo": [float(p) for _, p in series],
+                            text_es.TREND_CHART_DAY_COLUMN: [d for d, _ in series],
+                            text_es.TREND_CHART_PRICE_COLUMN: [float(p) for _, p in series],
                         }
-                    ).set_index("día")
+                    ).set_index(text_es.TREND_CHART_DAY_COLUMN)
                     st.line_chart(frame)
                 else:
                     st.markdown(f"*{text_es.NO_TREND}*")

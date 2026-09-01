@@ -50,6 +50,8 @@ MARGIN_VERB_GAIN = "ganás"
 MARGIN_VERB_LOSS = "perdés"
 TREND_VS = "vs hace {days} días"
 TREND_CHART_LABEL = "Historial de precio justo (30 días)"
+TREND_CHART_DAY_COLUMN = "día"
+TREND_CHART_PRICE_COLUMN = "precio justo"
 NO_TREND = "sin historial para comparar"
 
 # Distance (wired in PR 4)
