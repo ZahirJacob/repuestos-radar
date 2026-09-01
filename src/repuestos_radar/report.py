@@ -49,8 +49,11 @@ def _format_pct(value: Decimal) -> str:
     return str(abs(value)).replace(".", ",")
 
 
-def _format_day(day: date) -> str:
+def format_day(day: date) -> str:
     return day.strftime("%d/%m/%Y")
+
+
+_format_day = format_day
 
 
 def render_report(session: Session, today: date | None = None) -> str:
