@@ -26,6 +26,40 @@ class Source:
     city: str
     trust_notes: str
     scraping_notes: str | None = None
+    priority_categories: tuple[str, ...] | None = None
+    """Category path slugs a crawl-based adapter visits first, in this order.
+
+    Only meaningful for tiendanube-platform sources; other adapters ignore it.
+    """
+    max_catalog_pages: int | None = None
+    """Per-source override of the crawl page budget (adapter default when None).
+
+    Only meaningful for tiendanube-platform sources; other adapters ignore it.
+    """
+
+
+def _parse_priority_categories(index: int, value: object) -> tuple[str, ...] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list) or not all(
+        isinstance(slug, str) and slug.strip() for slug in value
+    ):
+        raise ValueError(
+            f"source #{index}: 'priority_categories' must be a list of "
+            "non-empty strings when present"
+        )
+    return tuple(slug.strip() for slug in value)
+
+
+def _parse_max_catalog_pages(index: int, value: object) -> int | None:
+    if value is None:
+        return None
+    # bool is excluded explicitly: YAML `true` is an int subclass in Python.
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError(
+            f"source #{index}: 'max_catalog_pages' must be a positive integer when present"
+        )
+    return value
 
 
 def _parse_entry(index: int, entry: object) -> Source:
@@ -41,6 +75,8 @@ def _parse_entry(index: int, entry: object) -> Source:
     return Source(
         **{field_name: entry[field_name].strip() for field_name in _REQUIRED_FIELDS},
         scraping_notes=(scraping_notes or "").strip() or None,
+        priority_categories=_parse_priority_categories(index, entry.get("priority_categories")),
+        max_catalog_pages=_parse_max_catalog_pages(index, entry.get("max_catalog_pages")),
     )
 
 

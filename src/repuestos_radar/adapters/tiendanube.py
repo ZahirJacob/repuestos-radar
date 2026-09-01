@@ -10,11 +10,20 @@ offer's price/currency/availability, and the product URL.
 
 Category URLs are discovered from the sitemap advertised in robots.txt
 (hosted on the platform CDN), falling back to same-host homepage links when
-no sitemap is advertised. Each category is paginated with ``?page=N``;
+no sitemap is advertised. Categories are crawled broad-first (shallow paths
+first), except that categories matching the source's ``priority_categories``
+slugs are crawled before everything else, in the configured order — so the
+categories the client actually cares about are covered even when the page
+budget cuts the crawl short. Each category is paginated with ``?page=N``;
 past-the-end pages return HTTP 200 with zero products, so the crawl stops on
-the first empty page. The whole crawl is bounded by ``MAX_CATALOG_PAGES``
-page fetches; hitting the cap logs a warning and returns the partial catalog
-rather than failing the source.
+the first empty page — and a page identical to the previous one also ends
+the category, because some themes serve a "recommended products" fallback
+for every page of an effectively empty category. The whole crawl is bounded
+by the source's
+``max_catalog_pages`` (``MAX_CATALOG_PAGES`` when unset) page fetches;
+hitting the cap logs a warning and returns the partial catalog rather than
+failing the source. ``pages_fetched`` and ``budget_exhausted`` report the
+crawl's coverage for the run report.
 
 The crawled catalog is cached on the adapter instance — the ingestion runner
 reuses one adapter per source across all tracked items, so the store is
@@ -49,7 +58,8 @@ from repuestos_radar.sources import Source
 logger = logging.getLogger(__name__)
 
 MAX_CATALOG_PAGES = 80
-"""Total category-page fetches allowed per crawl (~80s at the 1s courtesy delay)."""
+"""Default total category-page fetches allowed per crawl (~80s at the 1s
+courtesy delay); a source's ``max_catalog_pages`` overrides it."""
 
 _MAX_CANDIDATES = 100
 """Cap on discovered category candidates, defensive against pathological sitemaps."""
@@ -74,6 +84,10 @@ class TiendanubeAdapter:
     ) -> None:
         self.source = source
         self.skipped = 0
+        self.pages_fetched = 0
+        """Category pages fetched by the catalog crawl (0 until it runs)."""
+        self.budget_exhausted = False
+        """True when the crawl hit the page budget and the catalog may be partial."""
         self._http = PoliteHttpClient(source.slug, source.url, transport=transport, sleep=sleep)
         self._catalog: list[NormalizedListing] | None = None
         self._catalog_skipped = 0
@@ -113,24 +127,24 @@ class TiendanubeAdapter:
             )
 
         self._catalog_skipped = 0
+        budget = self.source.max_catalog_pages or MAX_CATALOG_PAGES
         listings: list[NormalizedListing] = []
         seen: set[str] = set()
-        pages_fetched = 0
         total_product_blocks = 0
-        budget_exhausted = False
         for category_url in allowed:
             page = 1
+            previous_page_ids: set[str] | None = None
             while True:
-                if pages_fetched >= MAX_CATALOG_PAGES:
+                if self.pages_fetched >= budget:
                     logger.warning(
                         "%s: catalog page budget (%d pages) reached; catalog may be partial",
                         self.source.slug,
-                        MAX_CATALOG_PAGES,
+                        budget,
                     )
-                    budget_exhausted = True
+                    self.budget_exhausted = True
                     break
                 response = self._http.get(category_url, params={"page": page})
-                pages_fetched += 1
+                self.pages_fetched += 1
                 if response.status_code != 200:
                     # A stale sitemap entry (404 etc.) is not a source failure:
                     # skip this category and keep crawling the rest.
@@ -149,12 +163,30 @@ class TiendanubeAdapter:
                     # a page of only out-of-stock products does not end the
                     # category early.
                     break
+                page_ids = {listing.external_id for listing in page_listings}
+                if page_ids and page_ids == previous_page_ids:
+                    # Some themes serve the same "recommended products"
+                    # listing for every ?page=N of an effectively empty
+                    # category, so the zero-products stop never fires and one
+                    # category would eat the whole page budget. An identical
+                    # repeat of the previous page ends the category. (Only
+                    # non-empty id sets are compared, so consecutive pages of
+                    # out-of-stock products do not trigger this.)
+                    logger.warning(
+                        "%s: page %d of %s is identical to the previous page "
+                        "(theme fallback listing?); ending the category",
+                        self.source.slug,
+                        page,
+                        category_url,
+                    )
+                    break
+                previous_page_ids = page_ids
                 for listing in page_listings:
                     if listing.external_id not in seen:
                         seen.add(listing.external_id)
                         listings.append(listing)
                 page += 1
-            if budget_exhausted:
+            if self.budget_exhausted:
                 break
         if total_product_blocks == 0:
             # A real store whose whole crawl shows zero Product JSON-LD is
@@ -164,24 +196,55 @@ class TiendanubeAdapter:
                 "%s: crawl completed with ZERO Product JSON-LD blocks across %d page(s); "
                 "platform markup may have changed — the empty catalog is suspect",
                 self.source.slug,
-                pages_fetched,
+                self.pages_fetched,
             )
         return listings
 
     # --- category discovery -------------------------------------------------
 
     def _discover_categories(self) -> list[str]:
-        """Category page candidates, broad (shallow-path) pages first.
+        """Category page candidates: priority categories first, then broad-first.
 
-        Broad-first ordering means that if the page budget cuts the crawl
-        short, the parent categories — which list their subtree's products —
-        have already been covered.
+        Broad-first (shallow-path) ordering means that if the page budget cuts
+        the crawl short, the parent categories — which list their subtree's
+        products — have already been covered. Categories matching the source's
+        ``priority_categories`` slugs are moved to the very front (in the
+        configured order, broad-first within each slug), and survive the
+        candidate cap, so the categories the client cares about are crawled
+        even on stores where the budget or the cap truncates the rest.
         """
         candidates = self._categories_from_sitemap()
         if not candidates:
             candidates = self._categories_from_homepage()
         ordered = sorted(candidates, key=lambda u: (urlsplit(u).path.count("/"), u))
-        return ordered[:_MAX_CANDIDATES]
+        return self._prioritized(ordered)[:_MAX_CANDIDATES]
+
+    def _prioritized(self, ordered: list[str]) -> list[str]:
+        """Move categories matching ``priority_categories`` to the front.
+
+        A slug matches a category URL when it appears as a contiguous run of
+        path segments (so ``celulares`` matches ``/celulares/`` and
+        ``/celulares/samsung/``, and ``repuestos/modulos`` works too). A slug
+        that matches nothing is harmless but logged: a store re-slugging a
+        category should be noticed, not silently ignored.
+        """
+        if not self.source.priority_categories:
+            return ordered
+        remaining = list(ordered)
+        front: list[str] = []
+        for slug in self.source.priority_categories:
+            needle = f"/{slug.strip('/')}/"
+            matched = [url for url in remaining if needle in _slashed_path(url)]
+            if not matched:
+                logger.warning(
+                    "%s: priority category '%s' matched no discovered category page; "
+                    "the store may have renamed or re-slugged it",
+                    self.source.slug,
+                    slug,
+                )
+            front.extend(matched)
+            remaining = [url for url in remaining if url not in matched]
+        return front + remaining
 
     def _categories_from_sitemap(self) -> set[str]:
         # Sitemap URLs come from the client's cached robots.txt parse, so
@@ -298,6 +361,16 @@ class TiendanubeAdapter:
             self._catalog_skipped += 1
             logger.warning("%s: skipping malformed product: %.120r", self.source.slug, product)
             return None
+
+
+def _slashed_path(url: str) -> str:
+    """URL path with leading and trailing slashes guaranteed, for segment matching."""
+    path = urlsplit(url).path
+    if not path.startswith("/"):
+        path = f"/{path}"
+    if not path.endswith("/"):
+        path = f"{path}/"
+    return path
 
 
 def _matches(query: str, title: str) -> bool:

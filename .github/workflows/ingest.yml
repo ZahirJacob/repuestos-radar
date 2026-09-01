@@ -19,7 +19,10 @@ concurrency:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Worst case is delay-dominated: up to 320 Tiendanube category pages
+    # (160 mdrepuestos + 80 gofix + 80 onestore) at the 1s courtesy delay
+    # plus real fetch latency ≈ 10-11 min, plus the search-based sources.
+    timeout-minutes: 20
     steps:
       # Third-party actions are pinned to full commit SHAs: this job holds the
       # production DATABASE_URL secret, and a moving tag could be repointed.

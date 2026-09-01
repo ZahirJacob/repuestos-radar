@@ -57,7 +57,14 @@ Fuentes actuales (comercios establecidos, de Rosario salvo que se indique otra c
 
 Las tiendas en Tiendanube no exponen una API JSON pública y sus rutas de búsqueda están
 prohibidas por robots.txt, así que el adaptador recorre con respeto sus páginas de categoría
-(JSON-LD de schema.org) una vez por corrida diaria en vez de buscar.
+(JSON-LD de schema.org) una vez por corrida diaria en vez de buscar. El recorrido se puede ajustar
+por fuente en `sources.yaml` con dos claves opcionales: `priority_categories` (slugs de categorías
+para recorrer primero, en orden — así una tienda donde solo importan algunas categorías, como las
+de celulares de One Store, queda cubierta antes de que se agote el presupuesto de páginas) y
+`max_catalog_pages` (pisa el presupuesto por defecto de 80 páginas — el catálogo completo de
+repuestos de MD Repuestos necesita 160). Si un slug prioritario ya no coincide con ninguna
+categoría, queda un warning en el log, así nos enteramos cuando una tienda renombra o cambia el
+slug de una categoría.
 
 **¿Por qué no MercadoLibre?** Su API de búsqueda de publicaciones está restringida a partners
 certificados (las credenciales comunes de aplicación y de usuario reciben 403), y sus páginas de
@@ -147,11 +154,22 @@ tablas se crean automáticamente si no existen.
 python -m repuestos_radar.ingest
 ```
 
+Para probar una sola tienda sin tocar el resto, `--source SLUG` (repetible) limita la corrida a
+las fuentes nombradas; un slug desconocido aborta la corrida al arrancar, igual que cualquier otro
+error de configuración:
+
+```bash
+python -m repuestos_radar.ingest --source onestore --source gofix
+```
+
 El reporte de la corrida sale por stdout como líneas `clave=valor` fáciles de grepear — por
 fuente: búsquedas consultadas, publicaciones traídas, productos malformados salteados, filas
 insertadas vs ya guardadas ese día, el desglose de relevancia (`match` / `low_confidence` /
-`reject`) y el mensaje de error si la fuente no estuvo disponible — más una línea de resumen. Una
-fuente que falla nunca aborta la corrida: se reporta y las demás siguen. El código de salida es 0
+`reject`) y el mensaje de error si la fuente no estuvo disponible — más una línea de resumen. Las
+fuentes que se recorren por categorías (Tiendanube) también reportan la cobertura del recorrido:
+`pages=12 crawl=full` significa que se recorrió el catálogo completo, y `pages=80 crawl=partial`
+que se agotó el presupuesto de páginas y el catálogo puede estar incompleto. Una fuente que falla
+nunca aborta la corrida: se reporta y las demás siguen. El código de salida es 0
 cuando al menos una fuente funcionó (una corrida sin búsquedas activas es un no-op exitoso) y 1
 cuando fallaron todas las fuentes o la corrida no pudo arrancar. El progreso se commitea después
 de cada guardado por fuente/búsqueda y el almacenamiento es idempotente por día, así que volver a
@@ -165,7 +183,7 @@ vez por día a las 09:00 UTC (06:00 en Argentina) — exactamente una corrida pr
 exige la política de cortesía de scraping. El job hace checkout del repo, instala las dependencias
 fijadas con uv (`uv sync --locked`, contra el `uv.lock` commiteado) y corre
 `python -m repuestos_radar.ingest`; el reporte de la corrida queda en el log del workflow. Un grupo de concurrencia evita que las corridas se superpongan, el job tiene un timeout
-de 15 minutos y nunca se reintenta automáticamente.
+de 20 minutos y nunca se reintenta automáticamente.
 
 Necesita el secret de repositorio `DATABASE_URL` (Settings → Secrets and variables → Actions) con
 la cadena de conexión de Postgres. Hasta que el secret no esté configurado, las corridas abortan al

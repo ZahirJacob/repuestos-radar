@@ -99,6 +99,61 @@ def test_wrong_typed_field_is_rejected(tmp_path: Path) -> None:
         load_sources(write_yaml(tmp_path, broken))
 
 
+CRAWL_TUNED_YAML = (
+    VALID_YAML
+    + """\
+  - slug: partsnube
+    name: Partsnube
+    url: https://partsnube.example.com.ar
+    platform: tiendanube
+    address: Calle Falsa 123
+    city: Rosario
+    trust_notes: Established storefront.
+    priority_categories:
+      - celulares
+      - repuestos/modulos
+    max_catalog_pages: 160
+"""
+)
+
+
+def test_crawl_tuning_keys_are_loaded(tmp_path: Path) -> None:
+    source = load_sources(write_yaml(tmp_path, CRAWL_TUNED_YAML))[2]
+    assert source.priority_categories == ("celulares", "repuestos/modulos")
+    assert source.max_catalog_pages == 160
+
+
+def test_crawl_tuning_keys_default_to_none(tmp_path: Path) -> None:
+    source = load_sources(write_yaml(tmp_path, VALID_YAML))[0]
+    assert source.priority_categories is None
+    assert source.max_catalog_pages is None
+
+
+def test_wrong_typed_priority_categories_is_rejected(tmp_path: Path) -> None:
+    broken = CRAWL_TUNED_YAML.replace(
+        "priority_categories:\n      - celulares\n      - repuestos/modulos",
+        "priority_categories: celulares",
+        1,
+    )
+    with pytest.raises(ValueError, match="priority_categories"):
+        load_sources(write_yaml(tmp_path, broken))
+
+
+def test_empty_priority_category_slug_is_rejected(tmp_path: Path) -> None:
+    broken = CRAWL_TUNED_YAML.replace("- repuestos/modulos", '- "  "', 1)
+    with pytest.raises(ValueError, match="priority_categories"):
+        load_sources(write_yaml(tmp_path, broken))
+
+
+@pytest.mark.parametrize("bad_value", ["eighty", "0", "-3", "true"])
+def test_invalid_max_catalog_pages_is_rejected(tmp_path: Path, bad_value: str) -> None:
+    broken = CRAWL_TUNED_YAML.replace(
+        "max_catalog_pages: 160", f"max_catalog_pages: {bad_value}", 1
+    )
+    with pytest.raises(ValueError, match="max_catalog_pages"):
+        load_sources(write_yaml(tmp_path, broken))
+
+
 def test_wrong_typed_scraping_notes_is_rejected(tmp_path: Path) -> None:
     broken = VALID_YAML.replace(
         "scraping_notes: Cloudflare filters default bot user-agents.", "scraping_notes: 5", 1
