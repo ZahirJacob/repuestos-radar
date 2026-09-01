@@ -248,9 +248,7 @@ def test_progress_callback_fires_once_per_searched_source(session, item):
     woo = _source("shopa", "woocommerce")
     nube = _source("shopb", "tiendanube")
     seen: list[str] = []
-    quick_search(
-        session, item, [woo, nube], adapters=[FakeAdapter(woo)], progress=seen.append
-    )
+    quick_search(session, item, [woo, nube], adapters=[FakeAdapter(woo)], progress=seen.append)
     assert seen == ["Shopa"]
 
 
@@ -352,15 +350,13 @@ def argentina_today() -> date:
 def runs_today(session: Session) -> int:
     """Quick searches already recorded for today (Argentine calendar day)."""
     return session.scalar(
-        select(func.count()).select_from(QuickSearchRun).where(
-            QuickSearchRun.ran_on == argentina_today()
-        )
+        select(func.count())
+        .select_from(QuickSearchRun)
+        .where(QuickSearchRun.ran_on == argentina_today())
     )
 
 
-def _search_one(
-    adapter: Adapter, query: str
-) -> tuple[list[ClassifiedListing], int, str | None]:
+def _search_one(adapter: Adapter, query: str) -> tuple[list[ClassifiedListing], int, str | None]:
     """Fetch + classify in a worker thread; DB writes stay on the caller's thread."""
     try:
         listings = adapter.fetch(query)
@@ -414,8 +410,7 @@ def quick_search(
                 stack.enter_context(adapter)
             with ThreadPoolExecutor(max_workers=max(1, len(adapters))) as pool:
                 futures = {
-                    pool.submit(_search_one, adapter, item.query): adapter
-                    for adapter in adapters
+                    pool.submit(_search_one, adapter, item.query): adapter for adapter in adapters
                 }
                 for future in as_completed(futures):
                     adapter = futures[future]
@@ -475,22 +470,33 @@ git commit -m "feat: parallel quick search over search-capable sources with dail
 - [ ] **Step 1: Write the failing tests** (append)
 
 ```python
-from repuestos_radar.dashboard.quicksearch import QuickSearchReport, QuickSourceReport, format_report
+from repuestos_radar.dashboard.quicksearch import (
+    QuickSearchReport,
+    QuickSourceReport,
+    format_report,
+)
 
 
 def test_format_report_lines_are_grepable():
     report = QuickSearchReport(item_id=3, query="modulo a32")
     report.sources = [
         QuickSourceReport(
-            slug="shopa", name="Shopa", searched=True,
-            fetched=2, inserted=1, matches=1, low_confidence=1,
+            slug="shopa",
+            name="Shopa",
+            searched=True,
+            fetched=2,
+            inserted=1,
+            matches=1,
+            low_confidence=1,
         ),
         QuickSourceReport(slug="shopb", name="Shopb", searched=False),
         QuickSourceReport(slug="shopc", name="Shopc", searched=True, failure='HTTP "500"'),
     ]
     text = format_report(report)
     assert 'quick search: item=3 query="modulo a32"' in text
-    assert "source=shopa searched=yes fetched=2 inserted=1 match=1 low_confidence=1 status=ok" in text
+    assert (
+        "source=shopa searched=yes fetched=2 inserted=1 match=1 low_confidence=1 status=ok" in text
+    )
     assert "source=shopb searched=no reason=crawl-only" in text
     assert "source=shopc searched=yes status=failed error=\"HTTP '500'\"" in text
 
@@ -625,11 +631,11 @@ def test_source_coordinates_default_none(tmp_path):
 @pytest.mark.parametrize(
     "extra",
     [
-        "    lat: -32.9526\n",                      # lat without lon
-        "    lon: -60.6310\n",                      # lon without lat
-        "    lat: -95.0\n    lon: -60.0\n",        # lat out of range
-        "    lat: -32.0\n    lon: 190.0\n",        # lon out of range
-        "    lat: south\n    lon: -60.0\n",        # not a number
+        "    lat: -32.9526\n",  # lat without lon
+        "    lon: -60.6310\n",  # lon without lat
+        "    lat: -95.0\n    lon: -60.0\n",  # lat out of range
+        "    lat: -32.0\n    lon: 190.0\n",  # lon out of range
+        "    lat: south\n    lon: -60.0\n",  # not a number
     ],
 )
 def test_bad_coordinates_rejected(tmp_path, extra):
@@ -754,10 +760,10 @@ def test_haversine_short_city_hop():
     ("km", "expected"),
     [
         (0.85, "850 m"),
-        (0.9999, "1,0 km"),   # rounds to 1000 m -> promoted to km
+        (0.9999, "1,0 km"),  # rounds to 1000 m -> promoted to km
         (0.049, "50 m"),
         (2.14, "2,1 km"),
-        (9.96, "10 km"),      # rounds to 10.0 -> promoted to integer km
+        (9.96, "10 km"),  # rounds to 10.0 -> promoted to integer km
         (12.4, "12 km"),
         (278.6, "279 km"),
     ],
@@ -819,7 +825,7 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def format_distance_km(km: float) -> str:
-    """"850 m" under 1 km, "2,1 km" under 10, whole km from there up."""
+    """ "850 m" under 1 km, "2,1 km" under 10, whole km from there up."""
     meters = round(km * 1000)
     if meters < 1000:
         # Round short hops to 10 m — fake precision helps nobody.
@@ -1103,7 +1109,11 @@ def seeded_db(tmp_path, monkeypatch):
                 relevance_score=0.9,
             )
         )
-        session.add(ServicePrice(tracked_item_id=item.id, label="Cambio módulo A32", price_ars=Decimal("85000")))
+        session.add(
+            ServicePrice(
+                tracked_item_id=item.id, label="Cambio módulo A32", price_ars=Decimal("85000")
+            )
+        )
         session.commit()
     return url
 
@@ -1210,7 +1220,9 @@ FROM_SHOP = "Desde: Local Activcelu"
 FROM_MY_LOCATION = "Desde: tu ubicación"
 USE_MY_LOCATION = "Usar mi ubicación"
 BACK_TO_SHOP = "Volver al local"
-LOCATION_DENIED = "No pudimos leer tu ubicación (permiso denegado). Seguimos midiendo desde el local."
+LOCATION_DENIED = (
+    "No pudimos leer tu ubicación (permiso denegado). Seguimos midiendo desde el local."
+)
 NO_SHOP_LOCATION = "Falta configurar la ubicación del local (SHOP_LAT/SHOP_LON)."
 NO_STORE_LOCATION = "—"
 SHIPS_ONLY_NOTE = "solo envío"
@@ -1415,7 +1427,7 @@ def _login(at):
 def test_home_card_shows_margin_and_no_warning_for_clean_data(seeded_db):
     at = _login(_app(seeded_db).run())
     body = " ".join(str(fragment) for fragment in at.markdown)
-    assert "$64.300" in body          # 85000 - 20700
+    assert "$64.300" in body  # 85000 - 20700
     assert "revisar" not in body
 
 
@@ -1484,9 +1496,7 @@ def render() -> None:
             with st.container(border=True):
                 st.subheader(item.query)
                 day = latest_day(session, item.id)
-                analyses = (
-                    analyze_item(listings_for_day(session, item.id, day)) if day else []
-                )
+                analyses = analyze_item(listings_for_day(session, item.id, day)) if day else []
                 best = _best_offer(analyses)
                 if best is None:
                     st.markdown(f"*{text_es.NO_DATA_TODAY}*")
@@ -1553,8 +1563,12 @@ from repuestos_radar.dashboard import detail
 def test_offer_line_plain_match():
     line = detail._offer_line(
         offer=StoreOffer(
-            source_slug="celuphone", title="Modulo A32 incell", price=Decimal("20700"),
-            url="https://celuphone.com.ar/p/1", relevance="match", tier="incell",
+            source_slug="celuphone",
+            title="Modulo A32 incell",
+            price=Decimal("20700"),
+            url="https://celuphone.com.ar/p/1",
+            relevance="match",
+            tier="incell",
         ),
         names={"celuphone": "Celuphone"},
         distance_text=None,
@@ -1566,8 +1580,13 @@ def test_offer_line_plain_match():
 
 def test_offer_line_low_confidence_and_outlier_warn():
     offer = StoreOffer(
-        source_slug="novocell", title="x", price=Decimal("9000"),
-        url="https://n", relevance="low_confidence", tier="incell", outlier=True,
+        source_slug="novocell",
+        title="x",
+        price=Decimal("9000"),
+        url="https://n",
+        relevance="low_confidence",
+        tier="incell",
+        outlier=True,
     )
     line = detail._offer_line(offer, names={}, distance_text=None)
     assert "revisar" in line and "novocell" in line
@@ -1575,9 +1594,13 @@ def test_offer_line_low_confidence_and_outlier_warn():
 
 def test_fair_price_line_small_sample_shows_range():
     analysis = TierAnalysis(
-        tier="incell", offers=(), fair_price=Decimal("22100"),
-        price_min=Decimal("20700"), price_max=Decimal("23500"),
-        store_count=2, basis=BASIS_MEDIAN,
+        tier="incell",
+        offers=(),
+        fair_price=Decimal("22100"),
+        price_min=Decimal("20700"),
+        price_max=Decimal("23500"),
+        store_count=2,
+        basis=BASIS_MEDIAN,
     )
     line = detail._fair_price_line(analysis)
     assert "$22.100" in line and "entre $20.700 y $23.500" in line
@@ -1585,9 +1608,13 @@ def test_fair_price_line_small_sample_shows_range():
 
 def test_fair_price_line_single_store_is_honest():
     analysis = TierAnalysis(
-        tier="incell", offers=(), fair_price=None,
-        price_min=Decimal("20700"), price_max=Decimal("20700"),
-        store_count=1, basis=BASIS_SINGLE_STORE,
+        tier="incell",
+        offers=(),
+        fair_price=None,
+        price_min=Decimal("20700"),
+        price_max=Decimal("20700"),
+        store_count=1,
+        basis=BASIS_SINGLE_STORE,
     )
     assert "un solo local" in detail._fair_price_line(analysis)
 ```
@@ -1730,7 +1757,10 @@ def render() -> None:
                 series = data.fair_price_series(session, item.id, analysis.tier, day)
                 if len(series) >= 2:
                     frame = pd.DataFrame(
-                        {"día": [d for d, _ in series], "precio justo": [float(p) for _, p in series]}
+                        {
+                            "día": [d for d, _ in series],
+                            "precio justo": [float(p) for _, p in series],
+                        }
                     ).set_index("día")
                     st.line_chart(frame)
                 else:
@@ -1879,9 +1909,7 @@ TRACKED_ADD_BUTTON = "Agregar"
 TRACKED_ADDED = "Se agregó. Los precios aparecen después de una búsqueda."
 TRACKED_ALREADY = "Ese repuesto ya está en la lista."
 TRACKED_STOP = "Dejar de vigilar"
-TRACKED_STOP_WARNING = (
-    "El historial de precios se guarda, pero el radar deja de buscarlo cada día."
-)
+TRACKED_STOP_WARNING = "El historial de precios se guarda, pero el radar deja de buscarlo cada día."
 TRACKED_STOPPED = "Listo — ya no se vigila."
 ```
 
@@ -2001,9 +2029,11 @@ def _render_services(session: Session) -> None:
     with st.form("add-service", clear_on_submit=True):
         st.markdown(f"**{text_es.SERVICE_ADD_HEADER}**")
         label = st.text_input(text_es.SERVICE_LABEL_FIELD)
-        item_id = st.selectbox(
-            text_es.SERVICE_ITEM_FIELD, list(items), format_func=items.get
-        ) if items else None
+        item_id = (
+            st.selectbox(text_es.SERVICE_ITEM_FIELD, list(items), format_func=items.get)
+            if items
+            else None
+        )
         raw_price = st.text_input(text_es.SERVICE_PRICE_FIELD)
         if st.form_submit_button(text_es.SERVICE_ADD_BUTTON) and item_id is not None:
             error = _add_service(session, label, item_id, raw_price)
@@ -2131,9 +2161,7 @@ def _render_quick_search(session: Session) -> None:
     preselect = st.session_state.get("quick-search-item")
     ids = list(items)
     index = ids.index(preselect) if preselect in items else 0
-    item_id = st.selectbox(
-        text_es.QUICK_SEARCH_ITEM_FIELD, ids, index=index, format_func=items.get
-    )
+    item_id = st.selectbox(text_es.QUICK_SEARCH_ITEM_FIELD, ids, index=index, format_func=items.get)
     capped = used >= quicksearch.DAILY_CAP
     if capped:
         st.info(text_es.QUICK_SEARCH_CAP.format(cap=quicksearch.DAILY_CAP))
@@ -2193,12 +2221,30 @@ def test_distance_for_known_store():
 
 def test_sorted_offers_by_distance_puts_unknown_last():
     coords = {"near": (-32.95, -60.65), "far": (-34.60, -58.38)}
-    near = StoreOffer(source_slug="near", title="a", price=Decimal("30000"),
-                      url="u", relevance="match", tier="incell")
-    far = StoreOffer(source_slug="far", title="b", price=Decimal("10000"),
-                     url="u", relevance="match", tier="incell")
-    unknown = StoreOffer(source_slug="web", title="c", price=Decimal("20000"),
-                         url="u", relevance="match", tier="incell")
+    near = StoreOffer(
+        source_slug="near",
+        title="a",
+        price=Decimal("30000"),
+        url="u",
+        relevance="match",
+        tier="incell",
+    )
+    far = StoreOffer(
+        source_slug="far",
+        title="b",
+        price=Decimal("10000"),
+        url="u",
+        relevance="match",
+        tier="incell",
+    )
+    unknown = StoreOffer(
+        source_slug="web",
+        title="c",
+        price=Decimal("20000"),
+        url="u",
+        relevance="match",
+        tier="incell",
+    )
     result = detail._sorted_offers((far, unknown, near), "distancia", (-32.95, -60.65), coords)
     assert [o.source_slug for o in result] == ["near", "far", "web"]
     by_price = detail._sorted_offers((far, unknown, near), "precio", (-32.95, -60.65), coords)
@@ -2214,9 +2260,7 @@ from repuestos_radar.dashboard import distance
 @st.cache_data
 def _store_coords() -> dict[str, tuple[float, float]]:
     return {
-        source.slug: (source.lat, source.lon)
-        for source in load_sources()
-        if source.lat is not None
+        source.slug: (source.lat, source.lon) for source in load_sources() if source.lat is not None
     }
 
 
@@ -2228,9 +2272,7 @@ def _distance_for(
     if reference is None or slug not in coords:
         return None
     lat, lon = coords[slug]
-    return distance.format_distance_km(
-        distance.haversine_km(reference[0], reference[1], lat, lon)
-    )
+    return distance.format_distance_km(distance.haversine_km(reference[0], reference[1], lat, lon))
 
 
 def _sorted_offers(offers, sort_key, reference, coords):
