@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from repuestos_radar.analysis import TierAnalysis, analyze_item, latest_day, listings_for_day
 from repuestos_radar.dashboard import data, text_es
+from repuestos_radar.dashboard.detail import source_names
 from repuestos_radar.margin import margins_for
 from repuestos_radar.models import ServicePrice, TrackedItem
 from repuestos_radar.relevance import Relevance
@@ -51,9 +52,10 @@ def render() -> None:
                     st.markdown(f"*{text_es.NO_DATA_TODAY}*")
                 else:
                     tier_label = TIER_LABELS_ES[best.tier]
+                    store = source_names().get(best.source_slug, best.source_slug)
                     st.markdown(
                         f"{text_es.BEST_PREFIX} **{format_ars(best.price)}** — "
-                        f"{best.source_slug} ({tier_label})"
+                        f"{store} ({tier_label})"
                     )
                     margin = _best_margin(session, item.id, analyses)
                     if margin is not None:
