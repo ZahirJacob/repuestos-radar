@@ -62,8 +62,9 @@ por fuente en `sources.yaml` con dos claves opcionales: `priority_categories` (s
 para recorrer primero, en orden — así una tienda donde solo importan algunas categorías, como las
 de celulares de One Store, queda cubierta antes de que se agote el presupuesto de páginas) y
 `max_catalog_pages` (pisa el presupuesto por defecto de 80 páginas — el catálogo completo de
-repuestos de MD Repuestos necesita 160). Si un slug prioritario deja de coincidir con alguna
-categoría, queda un warning en el log, así nos enteramos cuando una tienda renombra una categoría.
+repuestos de MD Repuestos necesita 160). Si un slug prioritario ya no coincide con ninguna
+categoría, queda un warning en el log, así nos enteramos cuando una tienda renombra o cambia el
+slug de una categoría.
 
 **¿Por qué no MercadoLibre?** Su API de búsqueda de publicaciones está restringida a partners
 certificados (las credenciales comunes de aplicación y de usuario reciben 403), y sus páginas de
@@ -154,8 +155,8 @@ python -m repuestos_radar.ingest
 ```
 
 Para probar una sola tienda sin tocar el resto, `--source SLUG` (repetible) limita la corrida a
-las fuentes nombradas; un slug desconocido aborta al arrancar, igual que cualquier otro error de
-configuración:
+las fuentes nombradas; un slug desconocido aborta la corrida al arrancar, igual que cualquier otro
+error de configuración:
 
 ```bash
 python -m repuestos_radar.ingest --source onestore --source gofix

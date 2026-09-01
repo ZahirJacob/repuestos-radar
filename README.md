@@ -142,7 +142,7 @@ python -m repuestos_radar.ingest
 ```
 
 To test one shop without touching the rest, `--source SLUG` (repeatable) restricts the run to the
-named source(s); an unknown slug aborts at startup like any other config error:
+named source(s); an unknown slug aborts the run at startup like any other config error:
 
 ```bash
 python -m repuestos_radar.ingest --source onestore --source gofix
