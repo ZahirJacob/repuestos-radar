@@ -76,3 +76,28 @@ class Listing(Base):
     relevance_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     tracked_item: Mapped[TrackedItem] = relationship(back_populates="listings")
+
+
+class ServicePrice(Base):
+    """What Activcelu charges the customer for one repair.
+
+    Linked to the tracked item whose part the repair consumes, so margin =
+    this price minus that part's best price. Managed by the services CLI now,
+    by the dashboard admin page in M4.
+    """
+
+    __tablename__ = "service_prices"
+    __table_args__ = (
+        CheckConstraint("length(trim(label)) > 0", name="ck_service_prices_label"),
+        CheckConstraint("price_ars > 0", name="ck_service_prices_price"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tracked_item_id: Mapped[int] = mapped_column(ForeignKey("tracked_items.id"))
+    label: Mapped[str] = mapped_column(Text, unique=True)
+    price_ars: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    tracked_item: Mapped[TrackedItem] = relationship()
