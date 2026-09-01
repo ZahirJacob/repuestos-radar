@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from repuestos_radar.models import Base, Listing, TrackedItem
+from repuestos_radar.models import Base, Listing, QuickSearchRun, TrackedItem
 
 
 @pytest.fixture
@@ -106,3 +106,15 @@ def test_same_listing_may_appear_under_two_tracked_items(session: Session) -> No
 
     rows = session.scalars(select(Listing)).all()
     assert {row.tracked_item_id for row in rows} == {first.id, second.id}
+
+
+def test_quick_search_run_rows_store_day_and_timestamp(session):
+    item = TrackedItem(query="modulo a32")
+    session.add(item)
+    session.flush()
+    run = QuickSearchRun(tracked_item_id=item.id, ran_on=date(2026, 9, 1))
+    session.add(run)
+    session.commit()
+    stored = session.get(QuickSearchRun, run.id)
+    assert stored.ran_on == date(2026, 9, 1)
+    assert stored.ran_at is not None
