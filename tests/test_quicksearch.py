@@ -10,6 +10,9 @@ from repuestos_radar.adapters.base import AdapterError
 from repuestos_radar.dashboard.quicksearch import (
     DAILY_CAP,
     SEARCHABLE_PLATFORMS,
+    QuickSearchReport,
+    QuickSourceReport,
+    format_report,
     quick_search,
     runs_today,
 )
@@ -140,3 +143,32 @@ def test_adapters_are_closed(session, item):
     fake = FakeAdapter(woo)
     quick_search(session, item, [woo], adapters=[fake])
     assert fake.closed
+
+
+def test_format_report_lines_are_grepable():
+    report = QuickSearchReport(item_id=3, query="modulo a32")
+    report.sources = [
+        QuickSourceReport(
+            slug="shopa",
+            name="Shopa",
+            searched=True,
+            fetched=2,
+            inserted=1,
+            matches=1,
+            low_confidence=1,
+        ),
+        QuickSourceReport(slug="shopb", name="Shopb", searched=False),
+        QuickSourceReport(slug="shopc", name="Shopc", searched=True, failure='HTTP "500"'),
+    ]
+    text = format_report(report)
+    assert 'quick search: item=3 query="modulo a32"' in text
+    assert (
+        "source=shopa searched=yes fetched=2 inserted=1 match=1 low_confidence=1 status=ok" in text
+    )
+    assert "source=shopb searched=no reason=crawl-only" in text
+    assert "source=shopc searched=yes status=failed error=\"HTTP '500'\"" in text
+
+
+def test_format_report_capped():
+    report = QuickSearchReport(item_id=3, query="modulo a32", capped=True)
+    assert "daily cap reached" in format_report(report)

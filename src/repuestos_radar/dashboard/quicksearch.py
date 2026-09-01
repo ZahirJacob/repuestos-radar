@@ -16,6 +16,8 @@ quick_search_runs table) keeps the feature honest even if the button gets
 tapped enthusiastically.
 """
 
+import argparse
+import sys
 import threading
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -24,14 +26,17 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+import yaml
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from repuestos_radar.adapters import Adapter, AdapterError
+from repuestos_radar.db import get_engine, get_session_factory, init_db
 from repuestos_radar.ingest import build_adapters
 from repuestos_radar.models import QuickSearchRun, TrackedItem
 from repuestos_radar.relevance import ClassifiedListing, Relevance, apply_relevance
-from repuestos_radar.sources import Source
+from repuestos_radar.sources import Source, load_sources
 from repuestos_radar.storage import save_classified_listings
 
 SEARCHABLE_PLATFORMS = frozenset({"woocommerce", "wix"})
@@ -175,3 +180,65 @@ def quick_search(
         return report
     finally:
         _RUN_LOCK.release()
+
+
+def format_report(report: QuickSearchReport) -> str:
+    """Render as grep-able key=value lines (same conventions as the ingest report)."""
+    query_text = report.query.replace('"', "'")
+    lines = [f'quick search: item={report.item_id} query="{query_text}"']
+    if report.capped:
+        lines.append(f"daily cap reached ({DAILY_CAP}/day); nothing fetched")
+        return "\n".join(lines)
+    for s in report.sources:
+        if not s.searched:
+            lines.append(f"source={s.slug} searched=no reason=crawl-only")
+            continue
+        line = f"source={s.slug} searched=yes"
+        if s.failure is None:
+            line += (
+                f" fetched={s.fetched} inserted={s.inserted}"
+                f" match={s.matches} low_confidence={s.low_confidence} status=ok"
+            )
+        else:
+            error_text = s.failure.replace('"', "'")
+            line += f' status=failed error="{error_text}"'
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point — an internal team tool; the client uses the dashboard."""
+    parser = argparse.ArgumentParser(
+        prog="python -m repuestos_radar.dashboard.quicksearch",
+        description="Search every search-capable source for one tracked item, now.",
+    )
+    parser.add_argument("item_id", type=int, help="tracked item id (see the tracked CLI)")
+    args = parser.parse_args(argv)
+    try:
+        sources = load_sources()
+    except (ValueError, OSError, yaml.YAMLError) as exc:
+        print(f"quick search aborted (config error): {' '.join(str(exc).split())}")
+        return 1
+    try:
+        engine = get_engine()
+        init_db(engine)
+        with get_session_factory(engine)() as session:
+            item = session.get(TrackedItem, args.item_id)
+            if item is None:
+                print(f"error: no tracked item with id {args.item_id}")
+                return 1
+            report = quick_search(session, item, sources)
+    except QuickSearchBusy:
+        print("error: a quick search is already running")
+        return 1
+    except SQLAlchemyError as exc:
+        print(f"quick search aborted (database error): {' '.join(str(exc).split())}")
+        return 1
+    print(format_report(report))
+    if report.capped:
+        return 1
+    return 0 if any(s.searched and s.failure is None for s in report.sources) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
