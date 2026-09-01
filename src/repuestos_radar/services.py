@@ -20,7 +20,7 @@ environment (or ``.env``), tables created at startup if missing.
 
 import argparse
 import sys
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -87,16 +87,23 @@ def remove_service(session: Session, service_id: int) -> str:
 
 
 def _parse_price(raw: str) -> Decimal | None:
-    """A positive Decimal, or None after printing a one-line error."""
+    """A positive Decimal in whole centavos, or None after a one-line error.
+
+    Decimal happily parses "nan" and "inf", so finiteness is checked before
+    the sign (comparing NaN raises InvalidOperation). Quantizing here makes
+    the echoed price match what Numeric(12, 2) will store.
+    """
     try:
         price = Decimal(raw)
     except InvalidOperation:
-        print(f"error: price must be a number, got '{raw}'")
+        price = None
+    if price is None or not price.is_finite():
+        print(f'error: price must be a number, got "{raw}"')
         return None
     if price <= 0:
         print("error: price must be positive")
         return None
-    return price
+    return price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _describe(service: ServicePrice) -> str:

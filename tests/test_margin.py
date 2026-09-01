@@ -166,4 +166,21 @@ def test_main_add_rejects_non_positive_price(capsys, cli_db) -> None:
     assert main(["add", "Cambio módulo A32", "--item", str(item_id), "--price", "0"]) == 1
     assert "positive" in capsys.readouterr().out
     assert main(["add", "Cambio módulo A32", "--item", str(item_id), "--price", "abc"]) == 1
-    assert "number" in capsys.readouterr().out
+    assert 'got "abc"' in capsys.readouterr().out
+
+
+def test_main_add_rejects_non_finite_price(capsys, cli_db) -> None:
+    item_id = _seed_item(cli_db)
+    for bad in ("nan", "inf", "-inf"):
+        # --price=-inf: the = form keeps argparse from reading -inf as a flag.
+        assert main(["add", "Cambio módulo A32", "--item", str(item_id), f"--price={bad}"]) == 1
+        assert f'error: price must be a number, got "{bad}"' in capsys.readouterr().out
+    capsys.readouterr()
+    assert main(["list"]) == 0
+    assert "no service prices" in capsys.readouterr().out  # nothing was stored
+
+
+def test_main_add_quantizes_price_to_centavos(capsys, cli_db) -> None:
+    item_id = _seed_item(cli_db)
+    assert main(["add", "Cambio módulo A32", "--item", str(item_id), "--price", "75000.999"]) == 0
+    assert "price=75001.00" in capsys.readouterr().out  # echo matches what is stored
