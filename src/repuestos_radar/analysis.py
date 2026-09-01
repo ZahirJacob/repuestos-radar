@@ -24,6 +24,7 @@ from repuestos_radar.quality import (
     TIER_UNLABELED,
     label_tier,
 )
+from repuestos_radar.relevance import Relevance
 
 BASIS_MEDIAN = "median"
 BASIS_SINGLE_STORE = "single-store"
@@ -149,7 +150,7 @@ def _flag_outliers(offers: tuple[StoreOffer, ...]) -> tuple[StoreOffer, ...]:
     )
 
 
-RELEVANT = ("match", "low_confidence")
+RELEVANT = (Relevance.MATCH.value, Relevance.LOW_CONFIDENCE.value)
 
 
 def latest_day(session: Session, tracked_item_id: int) -> date | None:

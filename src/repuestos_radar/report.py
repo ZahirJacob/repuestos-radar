@@ -25,6 +25,7 @@ from repuestos_radar.analysis import (
 from repuestos_radar.db import get_engine, get_session_factory, init_db
 from repuestos_radar.margin import margins_for
 from repuestos_radar.models import ServicePrice, TrackedItem
+from repuestos_radar.relevance import Relevance
 from repuestos_radar.sources import load_sources
 
 TIER_LABELS_ES = {
@@ -126,7 +127,7 @@ def _render_tier(
                 "alejado del resto (posible error, calidad mal etiquetada o una "
                 "oferta real)"
             )
-        if offer.relevance == "low_confidence":
+        if offer.relevance == Relevance.LOW_CONFIDENCE.value:
             lines.append(f"  ⚠ revisar: coincidencia dudosa en {store} — «{offer.title}»")
 
     for point in tier_trends(session, tracked_item_id, analysis.tier, day):

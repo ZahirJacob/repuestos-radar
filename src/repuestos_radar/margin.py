@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from repuestos_radar.analysis import TierAnalysis
+from repuestos_radar.relevance import Relevance
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,7 +34,7 @@ def margins_for(service_price: Decimal, analyses: Sequence[TierAnalysis]) -> lis
             (
                 offer
                 for offer in analysis.offers
-                if not offer.outlier and offer.relevance == "match"
+                if not offer.outlier and offer.relevance == Relevance.MATCH.value
             ),
             None,
         )
