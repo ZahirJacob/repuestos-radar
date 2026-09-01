@@ -127,10 +127,6 @@ def quick_search(
         if runs_today(session) >= DAILY_CAP:
             report.capped = True
             return report
-        # Recorded up front: a run that fails halfway still visited the stores,
-        # so it still spends cap.
-        session.add(QuickSearchRun(tracked_item_id=item.id, ran_on=argentina_today()))
-        session.commit()
 
         searchable = [s for s in sources if s.platform in SEARCHABLE_PLATFORMS]
         for source in sources:
@@ -138,8 +134,16 @@ def quick_search(
                 report.sources.append(
                     QuickSourceReport(slug=source.slug, name=source.name, searched=False)
                 )
+        # Built before the run is recorded: a config error here (unsupported
+        # platform) must abort cleanly without spending a cap slot — matches
+        # ingest.py, which resolves adapters before touching the database.
         if adapters is None:
             adapters = build_adapters(searchable)
+
+        # Recorded up front: a run that fails halfway still visited the stores,
+        # so it still spends cap.
+        session.add(QuickSearchRun(tracked_item_id=item.id, ran_on=argentina_today()))
+        session.commit()
 
         with ExitStack() as stack:
             for adapter in adapters:
@@ -230,6 +234,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             report = quick_search(session, item, sources)
     except QuickSearchBusy:
         print("error: a quick search is already running")
+        return 1
+    except ValueError as exc:
+        print(f"quick search aborted (config error): {' '.join(str(exc).split())}")
         return 1
     except SQLAlchemyError as exc:
         print(f"quick search aborted (database error): {' '.join(str(exc).split())}")

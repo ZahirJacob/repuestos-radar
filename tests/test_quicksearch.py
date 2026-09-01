@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from repuestos_radar.adapters.base import AdapterError
+from repuestos_radar.dashboard import quicksearch as quicksearch_module
 from repuestos_radar.dashboard.quicksearch import (
     DAILY_CAP,
     SEARCHABLE_PLATFORMS,
@@ -143,6 +144,23 @@ def test_adapters_are_closed(session, item):
     fake = FakeAdapter(woo)
     quick_search(session, item, [woo], adapters=[fake])
     assert fake.closed
+
+
+def test_unsupported_platform_aborts_before_spending_cap(session, item, monkeypatch):
+    """A config error building an adapter (unsupported platform) must raise
+    cleanly and record no QuickSearchRun row — never spend a cap slot on a
+    run that never actually visited a store. adapters=None so the real
+    build_adapters() runs; SEARCHABLE_PLATFORMS is patched so the bogus
+    platform is treated as searchable (today's registry has no such gap,
+    so this simulates a future misconfigured sources.yaml entry)."""
+    bogus = _source("bogus", "not-a-real-platform")
+    monkeypatch.setattr(
+        quicksearch_module, "SEARCHABLE_PLATFORMS", frozenset({"not-a-real-platform"})
+    )
+    with pytest.raises(ValueError, match="not-a-real-platform"):
+        quick_search(session, item, [bogus])
+    assert runs_today(session) == 0
+    assert session.scalars(select(QuickSearchRun)).all() == []
 
 
 def test_format_report_lines_are_grepable():
