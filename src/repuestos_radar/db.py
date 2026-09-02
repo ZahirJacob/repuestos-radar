@@ -32,7 +32,11 @@ def get_engine(database_url: str | None = None) -> Engine:
     # (Neon's default format) work. Any other scheme passes through untouched.
     if database_url.startswith("postgresql://"):
         database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
-    engine = create_engine(database_url)
+    # pool_pre_ping: the dashboard keeps one engine alive for hours while
+    # Neon suspends the database after a few idle minutes and drops its
+    # connections. Without the ping the pool hands back a dead connection and
+    # the first query after a pause fails with OperationalError.
+    engine = create_engine(database_url, pool_pre_ping=True)
     if engine.dialect.name == "sqlite":
         # SQLite ships with FK enforcement off; turn it on per connection so
         # dev/tests behave like postgres.
