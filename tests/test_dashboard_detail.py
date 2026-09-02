@@ -80,3 +80,43 @@ def test_fair_price_line_single_store_is_honest():
         basis=BASIS_SINGLE_STORE,
     )
     assert "una sola tienda" in detail._fair_price_line(analysis)
+
+
+def test_distance_for_known_store():
+    coords = {"celuphone": (-32.9386, -60.6801)}
+    text = detail._distance_for("celuphone", (-32.9386, -60.6801), coords)
+    assert text == "0 m"
+    assert detail._distance_for("nowhere", (-32.9386, -60.6801), coords) is None
+    assert detail._distance_for("celuphone", None, coords) is None
+
+
+def test_sorted_offers_by_distance_puts_unknown_last():
+    coords = {"near": (-32.95, -60.65), "far": (-34.60, -58.38)}
+    near = StoreOffer(
+        source_slug="near",
+        title="a",
+        price=Decimal("30000"),
+        url="u",
+        relevance="match",
+        tier="incell",
+    )
+    far = StoreOffer(
+        source_slug="far",
+        title="b",
+        price=Decimal("10000"),
+        url="u",
+        relevance="match",
+        tier="incell",
+    )
+    unknown = StoreOffer(
+        source_slug="web",
+        title="c",
+        price=Decimal("20000"),
+        url="u",
+        relevance="match",
+        tier="incell",
+    )
+    result = detail._sorted_offers((far, unknown, near), "distancia", (-32.95, -60.65), coords)
+    assert [o.source_slug for o in result] == ["near", "far", "web"]
+    by_price = detail._sorted_offers((far, unknown, near), "precio", (-32.95, -60.65), coords)
+    assert [o.source_slug for o in by_price] == ["far", "web", "near"]
