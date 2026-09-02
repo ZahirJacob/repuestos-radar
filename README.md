@@ -209,9 +209,9 @@ python -m repuestos_radar.tracked kind 3 phone
 paused. Items are paused rather than deleted: a paused item keeps its price history and is simply
 skipped by the daily ingestion.
 
-Every tracked item has a kind: `part` (the default) or `phone`. A whole phone's query ("samsung s24
-ultra") also matches every spare part sold for it, so for a `phone` item the relevance filter
-rejects any listing whose title carries a part word (módulo, batería, flex, tapa…). Set it with
+Every tracked item has a kind: `part` (the default) or `phone`. The query for a whole phone
+("samsung s24 ultra") also matches every spare part sold for it, so for a `phone` item the relevance
+filter rejects any listing whose title carries a part word (módulo, batería, flex, tapa…). Set it with
 `add --kind phone` or change it later with `kind ID part|phone`; the admin page asks the same
 question when adding an item.
 
