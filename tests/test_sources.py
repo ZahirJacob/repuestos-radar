@@ -23,6 +23,7 @@ sources:
     city: Rosario
     trust_notes: Established storefront.
     scraping_notes: Cloudflare filters default bot user-agents.
+    cloud_blocked: true
 """
 
 
@@ -55,7 +56,9 @@ def test_loads_sources_with_fields(tmp_path: Path) -> None:
     assert novocell.city == "Rosario"
     assert novocell.trust_notes == "Established storefront."
     assert novocell.scraping_notes is None
+    assert novocell.cloud_blocked is False
     assert sources[1].scraping_notes == "Cloudflare filters default bot user-agents."
+    assert sources[1].cloud_blocked is True
 
 
 def test_source_is_frozen(tmp_path: Path) -> None:
@@ -235,3 +238,27 @@ def test_real_registry_rosario_sources_have_coordinates():
     by_slug = {source.slug: source for source in load_sources()}
     for slug in ("novocell", "tienda-movil", "evophone", "celuphone", "litoral-accesorios"):
         assert by_slug[slug].lat is not None, slug
+
+
+def test_cloud_blocked_defaults_to_false(tmp_path: Path) -> None:
+    (source,) = load_sources(write_yaml(tmp_path, BASE_ENTRY))
+    assert source.cloud_blocked is False
+
+
+@pytest.mark.parametrize("bad_value", ['"yes"', "1", "0", "[true]"])
+def test_non_boolean_cloud_blocked_is_rejected(tmp_path: Path, bad_value: str) -> None:
+    broken = VALID_YAML.replace("cloud_blocked: true", f"cloud_blocked: {bad_value}", 1)
+    with pytest.raises(ValueError, match="cloud_blocked"):
+        load_sources(write_yaml(tmp_path, broken))
+
+
+def test_real_registry_cloud_blocked_stores() -> None:
+    """The two stores that 403 from datacenter IPs (2026-09-02) carry the flag;
+    the rest do not. They stay in the registry with their coordinates so the
+    dashboard can still name them and measure distances."""
+    by_slug = {source.slug: source for source in load_sources()}
+    blocked = {slug for slug, source in by_slug.items() if source.cloud_blocked}
+    assert blocked == {"evophone", "litoral-accesorios"}
+    for slug in blocked:
+        assert by_slug[slug].lat is not None, slug
+        assert "2026-09-02" in (by_slug[slug].scraping_notes or ""), slug

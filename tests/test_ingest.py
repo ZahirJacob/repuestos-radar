@@ -14,6 +14,7 @@ from repuestos_radar.adapters.base import AdapterError
 from repuestos_radar.ingest import (
     RunReport,
     SourceReport,
+    _select_sources,
     build_adapters,
     format_report,
     main,
@@ -24,7 +25,7 @@ from repuestos_radar.schema import Condition, NormalizedListing
 from repuestos_radar.sources import Source
 
 
-def make_source(slug: str, platform: str = "woocommerce") -> Source:
+def make_source(slug: str, platform: str = "woocommerce", *, cloud_blocked: bool = False) -> Source:
     return Source(
         slug=slug,
         name=slug.title(),
@@ -33,6 +34,7 @@ def make_source(slug: str, platform: str = "woocommerce") -> Source:
         address="Calle Falsa 123",
         city="Rosario",
         trust_notes="Test shop.",
+        cloud_blocked=cloud_blocked,
     )
 
 
@@ -309,7 +311,63 @@ def test_format_report_is_grep_able(session: Session) -> None:
     ) in text
     assert "source=broken items=0" in text
     assert 'status=failed error="broken: HTTP 503"' in text
-    assert "summary: sources_ok=1/2 fetched=2 inserted=2 already_stored=0 result=success" in text
+    assert (
+        "summary: sources_ok=1/2 skipped=0 fetched=2 inserted=2 already_stored=0 result=success"
+    ) in text
+    assert "status=skipped" not in text
+
+
+def test_format_report_lists_cloud_blocked_sources_as_skipped(session: Session) -> None:
+    """Skipped stores get their own grep-able row (no counters) and the summary
+    counts them apart: sources_ok only covers sources actually attempted."""
+    add_item(session, "modulo a34")
+    shop_a, _ = happy_adapters()
+
+    report = run_ingestion(session, [shop_a], skipped=["evophone", "litoral-accesorios"])
+
+    assert report.ok
+    assert report.skipped == ["evophone", "litoral-accesorios"]
+    assert [s.slug for s in report.sources] == ["shop-a"]
+    text = format_report(report)
+    lines = text.splitlines()
+    assert "source=evophone status=skipped reason=cloud_blocked" in lines
+    assert "source=litoral-accesorios status=skipped reason=cloud_blocked" in lines
+    assert "summary: sources_ok=1/1 skipped=2 fetched=2 inserted=2" in text
+    assert text.endswith("result=success")
+
+
+def test_skipped_sources_do_not_rescue_a_failed_run(session: Session) -> None:
+    """Exit-code semantics are unchanged: a skipped store is not an ok store."""
+    add_item(session, "modulo a34")
+    broken = FakeAdapter("broken", error=AdapterError("broken: HTTP 503", slug="broken"))
+
+    report = run_ingestion(session, [broken], skipped=["evophone"])
+
+    assert not report.ok
+    assert "summary: sources_ok=0/1 skipped=1" in format_report(report)
+
+
+def test_select_sources_default_run_leaves_out_cloud_blocked() -> None:
+    registry = [
+        make_source("shop-a"),
+        make_source("blocked", cloud_blocked=True),
+        make_source("shop-c"),
+    ]
+
+    chosen, skipped = _select_sources(registry, None)
+
+    assert [s.slug for s in chosen] == ["shop-a", "shop-c"]
+    assert skipped == ["blocked"]
+
+
+def test_select_sources_explicit_slug_still_runs_a_cloud_blocked_store() -> None:
+    """--source SLUG is how a blocked store gets re-tested, so it must run."""
+    registry = [make_source("shop-a"), make_source("blocked", cloud_blocked=True)]
+
+    chosen, skipped = _select_sources(registry, ["blocked"])
+
+    assert [s.slug for s in chosen] == ["blocked"]
+    assert skipped == []
 
 
 def test_crawl_coverage_is_reported_for_crawl_based_sources(session: Session) -> None:
@@ -532,7 +590,9 @@ def test_main_exit_1_when_every_source_fails(monkeypatch, capsys, cli_db) -> Non
     assert "result=failure" in capsys.readouterr().out
 
 
-def patch_registry(monkeypatch, slugs: list[str]) -> list[list[str]]:
+def patch_registry(
+    monkeypatch, slugs: list[str], blocked: frozenset[str] = frozenset()
+) -> list[list[str]]:
     """Fake registry + adapter factory; returns the slug lists build_adapters saw."""
     built: list[list[str]] = []
 
@@ -541,7 +601,9 @@ def patch_registry(monkeypatch, slugs: list[str]) -> list[list[str]]:
         return [FakeAdapter(s.slug) for s in sources]
 
     monkeypatch.setattr(
-        repuestos_radar.ingest, "load_sources", lambda: [make_source(slug) for slug in slugs]
+        repuestos_radar.ingest,
+        "load_sources",
+        lambda: [make_source(slug, cloud_blocked=slug in blocked) for slug in slugs],
     )
     monkeypatch.setattr(repuestos_radar.ingest, "build_adapters", fake_build)
     return built
@@ -593,6 +655,33 @@ def test_main_without_source_flag_runs_everything(monkeypatch, capsys, cli_db) -
 
     assert exit_code == 0
     assert built == [["shop-a", "shop-b"]]
+
+
+def test_main_default_run_skips_cloud_blocked_and_reports_them(monkeypatch, capsys, cli_db) -> None:
+    seed_item(cli_db, "modulo a34")
+    built = patch_registry(monkeypatch, ["shop-a", "blocked", "shop-c"], frozenset({"blocked"}))
+
+    exit_code = main([])
+
+    assert exit_code == 0
+    assert built == [["shop-a", "shop-c"]]  # no adapter is even built for the blocked store
+    out = capsys.readouterr().out
+    assert "source=blocked status=skipped reason=cloud_blocked" in out
+    assert "sources_ok=2/2 skipped=1" in out
+
+
+def test_main_explicit_source_runs_a_cloud_blocked_store(monkeypatch, capsys, cli_db) -> None:
+    seed_item(cli_db, "modulo a34")
+    built = patch_registry(monkeypatch, ["shop-a", "blocked"], frozenset({"blocked"}))
+
+    exit_code = main(["--source", "blocked"])
+
+    assert exit_code == 0
+    assert built == [["blocked"]]
+    out = capsys.readouterr().out
+    assert "source=blocked items=1" in out
+    assert "status=skipped" not in out
+    assert "sources_ok=1/1 skipped=0" in out
 
 
 def test_main_exit_1_on_config_error(monkeypatch, capsys) -> None:

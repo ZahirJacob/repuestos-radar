@@ -60,6 +60,15 @@ and `max_catalog_pages` (overrides the default 80-page crawl budget — MD Repue
 catalog needs 160). A priority slug that no longer matches any category logs a warning, so a store
 re-slugging a category gets noticed.
 
+A source can also carry `cloud_blocked: true`. That marks a store that answers HTTP 403 to our
+cloud IPs (GitHub Actions for the daily run, Streamlit Cloud for the quick search) while still
+serving residential visitors. Per the courtesy policy such a store is skipped, not worked around:
+the default daily run and the quick search leave it out (the ingest report lists it as
+`status=skipped reason=cloud_blocked`, and the dashboard says so in its own note), while an
+explicit `--source SLUG` still runs it so it can be re-tested. The store stays in the registry for
+its name and distance. Today Evophone and Litoral Accesorios carry the flag (403s from datacenter
+IPs observed 2026-09-02); setting it back to `false` re-enables the store.
+
 **Why not MercadoLibre?** Its listing-search API is restricted to certified partners (regular app
 and user credentials get 403s), and its listing pages redirect automated requests — even with an
 honest user-agent — to a verification wall. Our own courtesy policy says sites that decline
