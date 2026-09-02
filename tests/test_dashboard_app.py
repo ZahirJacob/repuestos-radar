@@ -189,8 +189,23 @@ def _login(at):
 def test_home_card_shows_margin_and_no_warning_for_clean_data(seeded_db):
     at = _login(_app(seeded_db).run())
     body = _body(at)
-    assert "$64.300" in body  # 85000 - 20700
+    assert ":green[↑ Ganás $64.300]" in body  # 85000 - 20700
+    assert "📍 Mejor precio en Celuphone (Incell/TFT)" in body
     assert "revisar" not in body
+
+
+def test_home_card_caption_and_margin_lines():
+    from repuestos_radar.dashboard import home
+
+    assert home._best_caption("Celuphone", "Original", None) == (
+        "📍 Mejor precio en Celuphone (Original)"
+    )
+    assert home._best_caption("Celuphone", "Original", "1,8 km") == (
+        "📍 Mejor precio en Celuphone (Original) :gray-background[📍 1,8 km]"
+    )
+    assert home._margin_line(Decimal("14300")) == ":green[↑ Ganás $14.300]"
+    assert home._margin_line(Decimal("0")) == ":green[↑ Ganás $0]"
+    assert home._margin_line(Decimal("-1200")) == ":red[↓ Perdés $1.200]"
 
 
 def test_home_card_says_no_data_today_for_empty_item(seeded_db, monkeypatch):

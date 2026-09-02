@@ -251,6 +251,12 @@ red blips flash as the line passes them, plus a status line with the number of s
 from the cloud. Every page title carries the same radar as a small logo; motion stops under
 `prefers-reduced-motion`.
 
+The app's colors live in `.streamlit/config.toml` (a light and a dark theme built on the radar's
+green; the app follows the phone's setting and the menu allows a manual switch — the radar itself
+keeps its own palette in both). On the detail page, "Usar mi ubicación" asks the browser for the
+phone's position through `streamlit-js-eval`; the reading is kept for the session only, never
+stored, and "Volver al local" drops it.
+
 To run it locally:
 
 ```bash

@@ -125,17 +125,108 @@ def test_adopt_reading_ignores_empty_or_null_reading():
 
 
 def test_back_to_shop_survives_stale_component_reading():
-    """Tap "Volver al local", then rerun: streamlit_geolocation replays its
-    last reading on every rerun, and that stale reading must NOT be
-    re-adopted — otherwise the button visibly does nothing (PR #21 blocker).
+    """Tap "Volver al local", then rerun: while the browser component stays
+    mounted Streamlit hands back its last value on every rerun, and that
+    stale reading must NOT be re-adopted — otherwise the button visibly does
+    nothing (PR #21 blocker).
     """
     state = {}
     reading = {"latitude": -32.95, "longitude": -60.65}
     detail._adopt_reading(state, reading)  # user opted in earlier this visit
-    state.pop("reference_point")  # user taps "Volver al local"
+    detail._back_to_shop(state)  # user taps "Volver al local"
     # Rerun: the component still returns the old reading.
     assert detail._adopt_reading(state, reading) is False
     assert "reference_point" not in state
+
+
+def test_back_to_shop_clears_pending_and_denied_requests_but_keeps_nothing_stored():
+    state = {"reference_point": (1.0, 2.0), "geo_requested": True, "geo_denied": True}
+    detail._back_to_shop(state)
+    assert state == {}
+    detail._back_to_shop(state)  # idempotent: a second tap from the shop is a no-op
+    assert state == {}
+
+
+def test_request_location_asks_for_a_fresh_reading_each_tap():
+    """Each tap bumps the component key (a fresh iframe asks the browser
+    again) and resets the adopted-reading baseline: after "Volver al local",
+    a second tap from the very same spot must take effect again."""
+    state = {}
+    reading = {"latitude": -32.95, "longitude": -60.65}
+    detail._request_location(state)
+    assert state["geo_requested"] is True and state["geo_request_id"] == 1
+    assert detail._adopt_reading(state, reading) is True
+    detail._back_to_shop(state)
+    detail._request_location(state)
+    assert state["geo_request_id"] == 2
+    assert "geo_denied" not in state
+    assert detail._adopt_reading(state, reading) is True  # same spot, adopted again
+    assert state["reference_point"] == (-32.95, -60.65)
+
+
+def test_reading_from_answer_flattens_the_component_shape():
+    answer = {
+        "coords": {"latitude": -32.95, "longitude": -60.65, "accuracy": 20.0},
+        "timestamp": 1_700_000_000,
+    }
+    assert detail._reading_from_answer(answer) == {"latitude": -32.95, "longitude": -60.65}
+    assert detail._reading_from_answer(None) is None  # browser has not answered yet
+    assert detail._reading_from_answer({"error": {"code": 1, "message": "denied"}}) is None
+    assert detail._reading_from_answer("garbage") is None
+    assert detail._answer_is_denied({"error": {"code": 1, "message": "denied"}}) is True
+    assert detail._answer_is_denied(answer) is False
+    assert detail._answer_is_denied(None) is False
+
+
+def test_ask_browser_degrades_to_no_answer_without_the_component(monkeypatch):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def failing_import(name, *args, **kwargs):
+        if name == "streamlit_js_eval":
+            raise ImportError("component missing")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", failing_import)
+    assert detail._ask_browser(1) is None
+
+
+def test_distance_pill_and_distance_from_shop(monkeypatch):
+    assert detail.distance_pill("1,8 km") == ":gray-background[📍 1,8 km]"
+    monkeypatch.setenv("SHOP_LAT", "-32.9468")
+    monkeypatch.setenv("SHOP_LON", "-60.6393")
+    coords = detail._store_coords()
+    known = next(iter(coords))
+    assert detail.distance_from_shop(known) == detail._distance_for(
+        known, (-32.9468, -60.6393), coords
+    )
+    assert detail.distance_from_shop("nowhere") is None
+    monkeypatch.delenv("SHOP_LAT")
+    monkeypatch.delenv("SHOP_LON")
+    assert detail.distance_from_shop(known) is None
+
+
+def test_tier_heading_counts_stores():
+    def analysis(count):
+        return TierAnalysis(
+            tier="original",
+            offers=(),
+            fair_price=None,
+            price_min=Decimal("1"),
+            price_max=Decimal("1"),
+            store_count=count,
+            basis=BASIS_MEDIAN,
+        )
+
+    assert detail._tier_heading(analysis(3)) == "Original :gray[· 3 tiendas]"
+    assert detail._tier_heading(analysis(1)) == "Original :gray[· 1 tienda]"
+
+
+def test_sort_key_falls_back_to_price():
+    assert detail._sort_key(text_es.SORT_DISTANCE) == "distancia"
+    assert detail._sort_key(text_es.SORT_PRICE) == "precio"
+    assert detail._sort_key(None) == "precio"  # segmented control deselected
 
 
 def test_distance_for_known_store():
@@ -221,10 +312,10 @@ def test_offer_line_puts_the_price_first_as_a_heading():
     )
     price_line, store_line = line.split("\n")
     assert price_line == "#### \\$20.700"
-    assert store_line == "[Celuphone](https://celuphone.com.ar/p/1) — 1,8 km"
+    assert store_line == "[Celuphone](https://celuphone.com.ar/p/1) :gray-background[📍 1,8 km]"
 
 
-def test_offer_line_warning_comes_after_the_store_line():
+def test_offer_line_warnings_are_orange_pills_on_the_store_line():
     offer = StoreOffer(
         source_slug="novocell",
         title="x",
@@ -232,14 +323,18 @@ def test_offer_line_warning_comes_after_the_store_line():
         url="https://n",
         relevance="low_confidence",
         tier="incell",
+        outlier=True,
     )
-    lines = detail._offer_line(offer, names={}, distance_text=None).split("\n")
-    assert lines[0] == "#### \\$9.000"
-    assert lines[1].startswith("[novocell](https://n)")
-    assert lines[2].startswith(":orange[⚠")
+    lines = detail._offer_line(offer, names={}, distance_text="3,4 km").split("\n")
+    assert lines == [
+        "#### \\$9.000",
+        "[novocell](https://n) :gray-background[📍 3,4 km] "
+        f":orange-background[⚠ {text_es.OUTLIER_WARNING}] "
+        f":orange-background[⚠ {text_es.LOW_CONFIDENCE_WARNING}]",
+    ]
 
 
-def test_fair_price_highlight_wraps_the_line_in_a_blue_background():
+def test_fair_price_highlight_wraps_the_line_in_a_green_background():
     analysis = TierAnalysis(
         tier="incell",
         offers=(),
@@ -250,7 +345,7 @@ def test_fair_price_highlight_wraps_the_line_in_a_blue_background():
         basis=BASIS_MEDIAN,
     )
     assert detail._fair_price_highlight(analysis) == (
-        f":blue-background[{detail._fair_price_line(analysis)}]"
+        f":green-background[{detail._fair_price_line(analysis)}]"
     )
     single = TierAnalysis(
         tier="incell",
@@ -261,4 +356,4 @@ def test_fair_price_highlight_wraps_the_line_in_a_blue_background():
         store_count=1,
         basis=BASIS_SINGLE_STORE,
     )
-    assert detail._fair_price_highlight(single).startswith(":blue-background[*")
+    assert detail._fair_price_highlight(single).startswith(":green-background[*")
