@@ -123,7 +123,8 @@ def quick_search(
     """Search every search-capable source for one item, in parallel; store results.
 
     Sources whose platform is not in SEARCHABLE_PLATFORMS appear in the report
-    with searched=False (the UI explains "solo búsqueda diaria"). Sources
+    with searched=False (the UI explains them with QUICK_SEARCH_SKIPPED_NOTE,
+    "el radar solo busca ahí una vez por día"). Sources
     flagged cloud_blocked are not searched either; they land in
     ``report.blocked`` so the UI can show a separate note. When the
     daily cap is already spent the report comes back capped=True and nothing

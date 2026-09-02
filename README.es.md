@@ -68,13 +68,13 @@ slug de una categoría.
 
 Una fuente también puede llevar `cloud_blocked: true`. Marca una tienda que responde HTTP 403 a
 nuestras IPs de la nube (GitHub Actions para la corrida diaria, Streamlit Cloud para la búsqueda
-rápida) aunque siga atendiendo a visitantes residenciales. Según la política de cortesía, a esa
+rápida) aunque siga respondiendo normalmente desde IPs residenciales. Según la política de cortesía, a esa
 tienda se la saltea, no se le busca la vuelta: la corrida diaria por defecto y la búsqueda rápida
 la dejan afuera (el reporte de ingesta la lista como `status=skipped reason=cloud_blocked`, y el
-panel lo avisa con una nota propia), mientras que un `--source SLUG` explícito sí la corre, para
+dashboard lo avisa con una nota propia), mientras que un `--source SLUG` explícito sí la corre, para
 poder volver a probarla. La tienda queda en el registro por su nombre y su distancia. Hoy la
-llevan Evophone y Litoral Accesorios (403 desde IPs de datacenter observados el 2026-09-02);
-volver a ponerla en `false` reactiva la tienda.
+tienen puesta Evophone y Litoral Accesorios (403 desde IPs de datacenter, confirmados el
+2026-09-02); volver a poner la clave en `false` reactiva la tienda.
 
 **¿Por qué no MercadoLibre?** Su API de búsqueda de publicaciones está restringida a partners
 certificados (las credenciales comunes de aplicación y de usuario reciben 403), y sus páginas de

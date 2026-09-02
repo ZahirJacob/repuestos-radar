@@ -670,6 +670,18 @@ def test_main_default_run_skips_cloud_blocked_and_reports_them(monkeypatch, caps
     assert "sources_ok=2/2 skipped=1" in out
 
 
+def test_main_default_run_with_every_store_blocked_is_a_failure(
+    monkeypatch, capsys, cli_db
+) -> None:
+    """Policy edge: nothing attempted means nothing ok, so the run fails."""
+    seed_item(cli_db, "modulo a34")
+    built = patch_registry(monkeypatch, ["a", "b"], frozenset({"a", "b"}))
+
+    assert main([]) == 1
+    assert built == [[]]
+    assert "sources_ok=0/0 skipped=2" in capsys.readouterr().out
+
+
 def test_main_explicit_source_runs_a_cloud_blocked_store(monkeypatch, capsys, cli_db) -> None:
     seed_item(cli_db, "modulo a34")
     built = patch_registry(monkeypatch, ["shop-a", "blocked"], frozenset({"blocked"}))

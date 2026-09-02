@@ -252,13 +252,16 @@ def test_non_boolean_cloud_blocked_is_rejected(tmp_path: Path, bad_value: str) -
         load_sources(write_yaml(tmp_path, broken))
 
 
-def test_real_registry_cloud_blocked_stores() -> None:
-    """The two stores that 403 from datacenter IPs (2026-09-02) carry the flag;
-    the rest do not. They stay in the registry with their coordinates so the
-    dashboard can still name them and measure distances."""
-    by_slug = {source.slug: source for source in load_sources()}
-    blocked = {slug for slug, source in by_slug.items() if source.cloud_blocked}
-    assert blocked == {"evophone", "litoral-accesorios"}
-    for slug in blocked:
-        assert by_slug[slug].lat is not None, slug
-        assert "2026-09-02" in (by_slug[slug].scraping_notes or ""), slug
+def test_real_registry_cloud_blocked_stores_explain_themselves() -> None:
+    """Every store flagged cloud_blocked says why in its scraping_notes (the
+    403s and the flag), keeps its coordinates so the dashboard can still name
+    it and measure distance, and the flag is a real bool on every source.
+    The exact set of flagged stores is not pinned: flipping one back to
+    false when it starts answering again must not break CI."""
+    for source in load_sources():
+        assert isinstance(source.cloud_blocked, bool), source.slug
+        if source.cloud_blocked:
+            assert source.scraping_notes, source.slug
+            assert "403" in source.scraping_notes, source.slug
+            assert "cloud_blocked" in source.scraping_notes, source.slug
+            assert source.lat is not None, source.slug

@@ -259,6 +259,6 @@ def render() -> None:
             with st.expander(f"{text_es.TREND_CHART_LABEL} — {TIER_LABELS_ES[analysis.tier]}"):
                 series = data.fair_price_series(session, item.id, analysis.tier, day)
                 if len(series) >= 2:
-                    st.altair_chart(_trend_chart(series), use_container_width=True)
+                    st.altair_chart(_trend_chart(series), width="stretch")
                 else:
                     st.markdown(f"*{text_es.NO_TREND}*")
