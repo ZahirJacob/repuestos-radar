@@ -28,11 +28,12 @@ debajo del mercado, y qué margen deja una reparación a los precios de hoy.
 2. **Historial de precios en Postgres.** Cada publicación se normaliza a un esquema común y se
    agrega a una base Postgres hosteada (Neon, plan gratuito), armando un historial de precios en
    el tiempo.
-3. **Dashboard en Streamlit.** Un dashboard primero en español (con selector ES/EN) muestra precios
-   actuales, historial y una calculadora de margen. Es público de solo lectura, salvo una página
-   de administración protegida con contraseña donde el cliente gestiona la lista de seguimiento —
-   las búsquedas seguidas viven en una tabla de la base, así que el cliente agrega o saca ítems
-   sin tocar código.
+3. **Dashboard en Streamlit.** Un dashboard primero en español, detrás de una única contraseña
+   compartida para toda la app, muestra precios actuales, historial y márgenes. Su página de
+   administración gestiona la lista de seguimiento y la lista de precios de reparaciones — las
+   búsquedas seguidas viven en una tabla de la base, así que el cliente agrega o saca ítems sin
+   tocar código. El selector ES/EN y una demo pública sin contraseña son el siguiente paso
+   comprometido después de M4.
 
 ## Fuentes de datos y política de confianza
 
@@ -72,9 +73,9 @@ rápida) aunque siga respondiendo normalmente desde IPs residenciales. Según la
 tienda se la saltea, no se le busca la vuelta: la corrida diaria por defecto y la búsqueda rápida
 la dejan afuera (el reporte de ingesta la lista como `status=skipped reason=cloud_blocked`, y el
 dashboard lo avisa con una nota propia), mientras que un `--source SLUG` explícito sí la corre, para
-poder volver a probarla. La tienda queda en el registro por su nombre y su distancia. Hoy la
-tienen puesta Evophone y Litoral Accesorios (403 desde IPs de datacenter, confirmados el
-2026-09-02); volver a poner la clave en `false` reactiva la tienda.
+poder volver a probarla. La tienda queda en el registro, así el dashboard puede seguir mostrando
+su nombre y su distancia. Hoy la tienen puesta Evophone y Litoral Accesorios (403 desde IPs de
+datacenter, confirmados el 2026-09-02); volver a poner la clave en `false` reactiva la tienda.
 
 **¿Por qué no MercadoLibre?** Su API de búsqueda de publicaciones está restringida a partners
 certificados (las credenciales comunes de aplicación y de usuario reciben 403), y sus páginas de
@@ -123,9 +124,13 @@ Celuphone (Woo) ────┘                                fuente, fecha)   
   cada corrida.
 - **M3 — Capa de análisis**: consultas sobre el historial, mejor precio y tendencias, cálculo de
   márgenes.
-- **M4 — Dashboard + administración**: app en Streamlit (primero en español, selector ES/EN),
-  vistas públicas de solo lectura, gestión de la lista de seguimiento protegida con contraseña.
+- **M4 — Dashboard + administración**: app en Streamlit pensada primero para el celular, en
+  español, detrás de una contraseña compartida — tarjetas por repuesto, ranking de tiendas por
+  nivel de calidad con distancias en línea recta, precios justos, márgenes, búsqueda rápida a
+  pedido y una página de administración para precios de reparaciones y repuestos vigilados.
 - **M5 — Alertas y pronósticos**: alertas de baja de precio y pronósticos simples de tendencia.
+- **Post-M4 — Demo pública**: un despliegue apto para portfolio con datos de muestra, sin
+  contraseña y con selector ES/EN.
 
 ## Entorno de desarrollo
 
@@ -205,8 +210,9 @@ Para disparar una corrida a mano: Actions → "Daily ingestion" → "Run workflo
 
 ## Gestionar las búsquedas seguidas
 
-Hasta que exista la página de administración del dashboard (M4), la lista de seguimiento se
-gestiona con una pequeña CLI de desarrollo (mismo contrato de `DATABASE_URL` que el runner):
+La lista de seguimiento se gestiona desde la página de administración del dashboard (ver
+[Dashboard (M4)](#dashboard-m4)); esta pequeña CLI de desarrollo sigue como herramienta interna
+del equipo (mismo contrato de `DATABASE_URL` que el runner):
 
 ```bash
 python -m repuestos_radar.tracked add "modulo samsung a34"
@@ -231,7 +237,8 @@ después con `kind ID part|phone`; la página de administración hace la misma p
 
 Dos CLIs de desarrollo más trabajan sobre el historial guardado (mismo contrato de `DATABASE_URL`
 que el runner). Las dos son herramientas internas del equipo — la cara para el cliente es el
-dashboard de M4, que va a mostrar los mismos números.
+dashboard de M4, que muestra los mismos números, y su página de administración también gestiona
+la lista de precios de reparaciones.
 
 ```bash
 python -m repuestos_radar.report
@@ -251,3 +258,56 @@ python -m repuestos_radar.services remove 2
 
 Gestiona la lista de precios de reparaciones de la que salen esos márgenes: lo que el taller cobra
 por cada reparación, vinculada a la búsqueda seguida cuyo repuesto consume esa reparación.
+
+## Dashboard (M4)
+
+La cara para el cliente: una app en Streamlit pensada primero para el celular, en español, detrás
+de una única contraseña compartida. El inicio muestra una tarjeta por repuesto vigilado (mejor
+precio, margen, avisos); la página de detalle ordena las tiendas por nivel de calidad con precios
+justos, distancias en línea recta, márgenes por reparación y tendencias de precio; la página de
+administración (Ajustes) gestiona los precios de las reparaciones y los repuestos vigilados, y
+corre una búsqueda rápida a pedido. La pantalla de ingreso abre con el radar de la app
+(`dashboard/radar.py`): un barrido hecho solo con CSS cuyos puntos rojos destellan cuando la línea
+pasa por ellos, más una línea de estado con la cantidad de tiendas alcanzables desde la nube. El
+título de cada página lleva el mismo radar como logo chico; la animación se detiene con
+`prefers-reduced-motion`.
+
+Los colores de la app viven en `.streamlit/config.toml`: un tema claro y uno oscuro construidos
+sobre el verde del radar. La app sigue la configuración del celular, y el tema se puede cambiar a
+mano desde el menú de la app. El radar conserva su propia paleta en los dos temas. En la página de
+detalle, "Usar mi ubicación" le pide al navegador la posición del celular a través de
+`streamlit-js-eval`. La lectura se conserva solo durante la sesión y nunca se guarda; "Volver al
+local" la descarta.
+
+Para correrla localmente:
+
+```bash
+uv sync --extra dashboard
+DATABASE_URL=... APP_PASSWORD=... uv run streamlit run streamlit_app.py
+```
+
+En producción la app corre en Streamlit Community Cloud, desplegada desde `main`. Su configuración
+vive en los secrets de la app (configuración de la app → Secrets en la interfaz de Streamlit
+Cloud) — nunca se commitea al repo:
+
+| Secret         | Qué es                                                                              |
+| -------------- | ----------------------------------------------------------------------------------- |
+| `DATABASE_URL` | Cadena de conexión de Postgres — la misma base en la que escribe la ingesta diaria. |
+| `APP_PASSWORD` | La contraseña compartida detrás de la que está toda la app.                         |
+| `SHOP_LAT`     | Latitud del local — el punto de referencia por defecto para las distancias.         |
+| `SHOP_LON`     | Longitud del local — se mantiene fuera del repo público junto con `SHOP_LAT`.       |
+
+La búsqueda rápida ("Buscar precios ahora") busca un repuesto en el buscador propio de cada
+tienda que tenga uno, en paralelo pero con respeto (cada tienda sigue viendo un único visitante
+secuencial), y tiene un tope fijo de 10 corridas por día calendario. Las tiendas en Tiendanube
+quedan solo para la corrida diaria: el robots.txt de la plataforma prohíbe `/search/`, y según
+la política de cortesía las salteamos en vez de buscarles la vuelta — el recorrido diario las
+sigue cubriendo.
+
+### Capturas de pantalla
+
+Capturas de la app desplegada:
+
+![Inicio](docs/images/dashboard-home.png)
+![Detalle](docs/images/dashboard-detail.png)
+![Administración](docs/images/dashboard-admin.png)
