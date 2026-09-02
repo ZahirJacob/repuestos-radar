@@ -71,8 +71,27 @@ def test_fair_price_line_small_sample_shows_range():
     assert "$$" not in line
 
 
-def test_md_ars_escapes_the_dollar_for_markdown():
-    assert detail.md_ars(Decimal("20700")) == "\\$20.700"
+def test_margin_line_keeps_both_escaped_dollar_signs():
+    from repuestos_radar.margin import TierMargin
+    from repuestos_radar.models import ServicePrice
+
+    service = ServicePrice(tracked_item_id=1, label="Cambio módulo A32", price_ars=Decimal("85000"))
+    tier_margin = TierMargin(
+        tier="incell", part_source="celuphone", part_price=Decimal("20700"), margin=Decimal("64300")
+    )
+    line = detail._margin_line(service, tier_margin, {"celuphone": "Celuphone"})
+    assert line == (
+        "Cambio módulo A32 (\\$85.000): ganás \\$64.300 con el repuesto de Celuphone (Incell/TFT)"
+    )
+    assert line.count("\\$") == 2 and "$$" not in line
+    loss = TierMargin(
+        tier="incell", part_source="celuphone", part_price=Decimal("90000"), margin=Decimal("-5000")
+    )
+    assert "perdés \\$5.000" in detail._margin_line(service, loss, {})
+    dollar_label = ServicePrice(
+        tracked_item_id=1, label="Promo $ finde", price_ars=Decimal("85000")
+    )
+    assert detail._margin_line(dollar_label, tier_margin, {}).startswith("Promo \\$ finde (")
 
 
 def test_fair_price_line_single_store_is_honest():

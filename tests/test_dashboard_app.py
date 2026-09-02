@@ -8,9 +8,11 @@ import pytest
 from streamlit.proto.TextInput_pb2 import TextInput as TextInputProto
 from streamlit.testing.v1 import AppTest
 
+from repuestos_radar.dashboard import app as dashboard_app
 from repuestos_radar.dashboard import data
 from repuestos_radar.db import get_engine, get_session_factory, init_db
 from repuestos_radar.models import Listing, ServicePrice, TrackedItem
+from repuestos_radar.sources import load_sources
 
 _ENTRY_SCRIPT = Path(__file__).resolve().parent.parent / "streamlit_app.py"
 
@@ -88,7 +90,26 @@ def test_login_screen_shows_the_radar_panel_instead_of_a_title(seeded_db):
     panels = [m.value for m in at.markdown if "<svg" in m.value]
     assert len(panels) == 1
     assert "Repuestos Radar" in panels[0]
-    assert "6 tiendas en el radar" in panels[0]  # registry minus cloud_blocked stores
+    reachable = sum(1 for source in load_sources() if not source.cloud_blocked)
+    assert reachable > 1  # the plural line is the one on screen today
+    assert f"Desde Rosario · {reachable} tiendas en el radar" in panels[0]
+
+
+def test_login_status_line_picks_singular_plural_or_no_count():
+    assert dashboard_app.login_status_line(6) == "Desde Rosario · 6 tiendas en el radar"
+    assert dashboard_app.login_status_line(1) == "Desde Rosario · 1 tienda en el radar"
+    assert dashboard_app.login_status_line(0) == "Desde Rosario · 0 tiendas en el radar"
+    assert dashboard_app.login_status_line(None) == "Desde Rosario"
+
+
+def test_reachable_source_count_fails_soft_on_a_bad_registry():
+    def broken_loader():
+        raise ValueError("sources.yaml: expected a non-empty 'sources' list")
+
+    assert dashboard_app._count_reachable_sources(broken_loader) is None
+    assert dashboard_app._count_reachable_sources() == sum(
+        1 for source in load_sources() if not source.cloud_blocked
+    )
 
 
 def test_pages_carry_the_logo_title(seeded_db):

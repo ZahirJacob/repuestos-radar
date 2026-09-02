@@ -56,8 +56,7 @@ def _animation_css(prefix: str, period_s: float) -> str:
     """
     period = f"{period_s:g}s"
     return (
-        f".{prefix}-sweep{{transform-origin:50% 50%;"
-        f"animation:{prefix}-sweep {period} linear infinite}}"
+        f".{prefix}-sweep{{animation:{prefix}-sweep {period} linear infinite}}"
         f"@keyframes {prefix}-sweep{{to{{transform:rotate(360deg)}}}}"
         f".{prefix}-blip{{animation:{prefix}-blip {period} linear infinite;"
         f"filter:drop-shadow(0 0 4px {BLIP}) drop-shadow(0 0 1px {BLIP})}}"

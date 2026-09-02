@@ -6,7 +6,7 @@ import pytest
 
 from repuestos_radar.dashboard import radar, text_es
 
-STATUS = "Rosario · 6 tiendas en el radar"
+STATUS = "Desde Rosario · 6 tiendas en el radar"
 
 
 @pytest.mark.parametrize(

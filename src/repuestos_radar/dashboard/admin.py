@@ -4,13 +4,15 @@ Same write helpers as the team CLIs (services.py / tracked.py) — the admin
 page is another caller, not another implementation.
 """
 
+from decimal import Decimal
+
 import streamlit as st
 from sqlalchemy.orm import Session
 
 from repuestos_radar import services, tracked
 from repuestos_radar.dashboard import data, quicksearch, radar, text_es
 from repuestos_radar.models import TrackedItem
-from repuestos_radar.report import format_ars
+from repuestos_radar.report import escape_md_dollars, md_ars
 from repuestos_radar.sources import load_sources
 
 # A success message shown right before st.rerun() never renders — the rerun
@@ -137,12 +139,18 @@ def _render_quick_search(session: Session) -> None:
         _render_report(report)
 
 
+def _service_line(label: str, price_ars: Decimal) -> str:
+    """Label and price as markdown; both escaped, since an admin can type a
+    ``$`` into the label and ``$...$`` would render as math."""
+    return f"**{escape_md_dollars(label)}** — {md_ars(price_ars)}"
+
+
 def _render_services(session: Session) -> None:
     st.subheader(text_es.SERVICES_HEADER)
     items = {item.id: item.query for item in tracked.list_items(session)}
     for service in services.list_services(session):
         with st.container(border=True):
-            st.markdown(f"**{service.label}** — {format_ars(service.price_ars)}")
+            st.markdown(_service_line(service.label, service.price_ars))
             with st.expander(text_es.SERVICE_EDIT):
                 raw = st.text_input(
                     text_es.SERVICE_PRICE_FIELD,

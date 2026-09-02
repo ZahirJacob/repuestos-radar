@@ -7,7 +7,7 @@ import pytest
 
 from repuestos_radar.db import get_engine, get_session_factory, init_db
 from repuestos_radar.models import Listing, ServicePrice, TrackedItem
-from repuestos_radar.report import format_ars, render_report
+from repuestos_radar.report import escape_md_dollars, format_ars, md_ars, render_report
 
 
 @pytest.fixture()
@@ -37,6 +37,12 @@ def _store_listing(
             relevance_score=1.0,
         )
     )
+
+
+def test_md_ars_and_escape_md_dollars_escape_for_streamlit_markdown():
+    assert md_ars(Decimal("20700")) == "\\$20.700"
+    assert escape_md_dollars("Promo $ finde") == "Promo \\$ finde"
+    assert escape_md_dollars("sin pesos") == "sin pesos"
 
 
 def test_format_ars_argentine_style():
