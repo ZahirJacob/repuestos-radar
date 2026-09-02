@@ -198,14 +198,22 @@ this small dev CLI remains as an internal team tool (same `DATABASE_URL` contrac
 
 ```bash
 python -m repuestos_radar.tracked add "modulo samsung a34"
+python -m repuestos_radar.tracked add "samsung s24 ultra" --kind phone
 python -m repuestos_radar.tracked list
 python -m repuestos_radar.tracked pause 3
 python -m repuestos_radar.tracked resume 3
+python -m repuestos_radar.tracked kind 3 phone
 ```
 
 `add` on an already-tracked query says so instead of failing, and reactivates the item if it was
 paused. Items are paused rather than deleted: a paused item keeps its price history and is simply
 skipped by the daily ingestion.
+
+Every tracked item has a kind: `part` (the default) or `phone`. A whole phone's query ("samsung s24
+ultra") also matches every spare part sold for it, so for a `phone` item the relevance filter
+rejects any listing whose title carries a part word (módulo, batería, flex, tapa…). Set it with
+`add --kind phone` or change it later with `kind ID part|phone`; the admin page asks the same
+question when adding an item.
 
 ## Daily report and repair price list
 

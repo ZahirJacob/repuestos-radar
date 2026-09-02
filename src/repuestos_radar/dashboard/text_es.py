@@ -98,6 +98,10 @@ TRACKED_QUERY_HINT = (
     "Las palabras con las que se busca en las tiendas, como en el buscador de "
     'una página. Ejemplo: "modulo samsung a32".'
 )
+TRACKED_KIND_LABEL = "¿Qué es?"
+TRACKED_KIND_PART = "Repuesto"
+TRACKED_KIND_PHONE = "Celular"
+TRACKED_KIND_PHONE_TAG = "celular"
 TRACKED_ADD_BUTTON = "Agregar"
 TRACKED_ADDED = (
     "Se agregó. Para ver precios ya, usá «Buscar precios ahora»; "

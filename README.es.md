@@ -210,14 +210,22 @@ gestiona con una pequeña CLI de desarrollo (mismo contrato de `DATABASE_URL` qu
 
 ```bash
 python -m repuestos_radar.tracked add "modulo samsung a34"
+python -m repuestos_radar.tracked add "samsung s24 ultra" --kind phone
 python -m repuestos_radar.tracked list
 python -m repuestos_radar.tracked pause 3
 python -m repuestos_radar.tracked resume 3
+python -m repuestos_radar.tracked kind 3 phone
 ```
 
 `add` con una búsqueda ya seguida te lo avisa en vez de fallar, y reactiva el ítem si estaba
 pausado. Los ítems se pausan, no se borran: un ítem pausado conserva su historial de precios y
 simplemente queda afuera de la ingesta diaria.
+
+Cada ítem tiene un tipo: `part` (repuesto, el valor por defecto) o `phone` (celular). La búsqueda de
+un celular entero ("samsung s24 ultra") también encuentra todos los repuestos de ese modelo, así que
+para un ítem `phone` el filtro de relevancia rechaza cualquier publicación cuyo título tenga una
+palabra de repuesto (módulo, batería, flex, tapa…). Se define con `add --kind phone` o se cambia
+después con `kind ID part|phone`; la página de administración hace la misma pregunta al agregar.
 
 ## Reporte diario y lista de precios de reparaciones
 

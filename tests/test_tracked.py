@@ -18,6 +18,7 @@ from repuestos_radar.tracked import (
     list_items,
     main,
     set_active,
+    set_kind,
 )
 
 
@@ -130,7 +131,7 @@ def all_rows(url: str) -> list[tuple[str, bool]]:
 
 def test_main_add_list_pause_resume_roundtrip(capsys, cli_db) -> None:
     assert main(["add", "modulo samsung a34"]) == 0
-    assert 'added: id=1 active=yes query="modulo samsung a34"' in capsys.readouterr().out
+    assert 'added: id=1 active=yes kind=part query="modulo samsung a34"' in capsys.readouterr().out
 
     assert main(["pause", "1"]) == 0
     assert "paused: id=1 active=no" in capsys.readouterr().out
@@ -142,7 +143,7 @@ def test_main_add_list_pause_resume_roundtrip(capsys, cli_db) -> None:
 
     assert main(["list"]) == 0
     out = capsys.readouterr().out
-    assert 'id=1 active=yes query="modulo samsung a34" created=' in out
+    assert 'id=1 active=yes kind=part query="modulo samsung a34" created=' in out
     assert "total=1 active=1 paused=0" in out
 
 
@@ -171,7 +172,9 @@ def test_main_add_paused_query_prints_reactivated(capsys, cli_db) -> None:
 
     assert main(["add", "modulo a34"]) == 0
 
-    assert 'reactivated (was paused): id=1 active=yes query="modulo a34"' in capsys.readouterr().out
+    assert 'reactivated (was paused): id=1 active=yes kind=part query="modulo a34"' in (
+        capsys.readouterr().out
+    )
     assert all_rows(cli_db) == [("modulo a34", True)]
 
 
@@ -214,3 +217,97 @@ def test_main_db_error_during_command_aborts_with_one_line(monkeypatch, capsys, 
     assert "tracked aborted (database error)" in out
     # The multi-line SQLAlchemy message is collapsed onto the abort line.
     assert "db went away" in out
+
+
+# --- item kind: part (default) or phone --------------------------------------
+
+
+def test_add_defaults_to_part_and_accepts_phone(session: Session) -> None:
+    part, _ = add_item(session, "modulo samsung a34")
+    phone, _ = add_item(session, "samsung s24 ultra", kind="phone")
+    session.commit()
+
+    assert part.kind == "part"
+    assert phone.kind == "phone"
+
+
+def test_add_existing_query_keeps_its_kind(session: Session) -> None:
+    original, _ = add_item(session, "samsung s24 ultra", kind="phone")
+    session.commit()
+
+    same, status = add_item(session, "samsung s24 ultra", kind="part")
+    assert status == ALREADY_ACTIVE
+    assert same.kind == "phone"
+
+    original.active = False
+    session.commit()
+    revived, status = add_item(session, "samsung s24 ultra", kind="part")
+    assert status == REACTIVATED
+    assert revived.kind == "phone"  # reactivation does not silently retype the item
+
+
+def test_add_rejects_unknown_kind(session: Session) -> None:
+    with pytest.raises(ValueError, match="unknown tracked item kind: 'tablet'"):
+        add_item(session, "ipad", kind="tablet")
+    assert session.scalars(select(TrackedItem)).all() == []
+
+
+def test_set_kind_changes_and_reports_no_op(session: Session) -> None:
+    item, _ = add_item(session, "samsung s24 ultra")
+    session.commit()
+
+    changed, status = set_kind(session, item.id, "phone")
+    session.commit()
+    assert status == CHANGED
+    assert changed is not None and changed.kind == "phone"
+
+    _, status = set_kind(session, item.id, "phone")
+    assert status == UNCHANGED
+
+    missing, status = set_kind(session, 999, "phone")
+    assert missing is None
+    assert status == NOT_FOUND
+
+    with pytest.raises(ValueError, match="unknown tracked item kind"):
+        set_kind(session, item.id, "tablet")
+
+
+def all_kinds(url: str) -> list[tuple[str, str]]:
+    engine = create_engine(url)
+    with Session(engine) as session:
+        rows = [(i.query, i.kind) for i in session.scalars(select(TrackedItem))]
+    engine.dispose()
+    return rows
+
+
+def test_main_add_with_kind_and_kind_subcommand(capsys, cli_db) -> None:
+    assert main(["add", "samsung s24 ultra", "--kind", "phone"]) == 0
+    assert 'added: id=1 active=yes kind=phone query="samsung s24 ultra"' in capsys.readouterr().out
+    assert all_kinds(cli_db) == [("samsung s24 ultra", "phone")]
+
+    assert main(["kind", "1", "part"]) == 0
+    assert 'kind changed: id=1 active=yes kind=part query="samsung s24 ultra"' in (
+        capsys.readouterr().out
+    )
+    assert all_kinds(cli_db) == [("samsung s24 ultra", "part")]
+
+    assert main(["kind", "1", "part"]) == 0
+    assert "already part — nothing to do: id=1" in capsys.readouterr().out
+
+    assert main(["list"]) == 0
+    assert 'id=1 active=yes kind=part query="samsung s24 ultra" created=' in capsys.readouterr().out
+
+
+def test_main_kind_unknown_id_exits_one(capsys, cli_db) -> None:
+    assert main(["kind", "42", "phone"]) == 1
+    assert "no tracked item with id 42" in capsys.readouterr().out
+
+
+def test_main_rejects_unknown_kind_value(capsys, cli_db) -> None:
+    # argparse validates the choice and exits 2 before touching the database.
+    with pytest.raises(SystemExit) as exc_info:
+        main(["add", "ipad", "--kind", "tablet"])
+    assert exc_info.value.code == 2
+    assert "invalid choice: 'tablet'" in capsys.readouterr().err
+    assert main(["list"]) == 0
+    assert "no tracked items" in capsys.readouterr().out
