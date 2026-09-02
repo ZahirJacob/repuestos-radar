@@ -110,3 +110,9 @@ def test_blocked_note_is_separate_from_the_crawl_only_note():
     assert admin._skipped_note(report) == text_es.QUICK_SEARCH_SKIPPED_NOTE.format(names="Tienda B")
     report.blocked = []
     assert admin._blocked_note(report) is None
+
+
+def test_service_line_escapes_a_dollar_typed_into_the_label():
+    line = admin._service_line("Promo $ finde", Decimal("85000"))
+    assert line == "**Promo \\$ finde** — \\$85.000"
+    assert admin._service_line("Cambio módulo", Decimal("85000")) == "**Cambio módulo** — \\$85.000"

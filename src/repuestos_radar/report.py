@@ -44,6 +44,21 @@ def format_ars(value: Decimal) -> str:
     return "$" + f"{whole:,}".replace(",", ".")
 
 
+def escape_md_dollars(text: str) -> str:
+    """Escape ``$`` for ``st.markdown``, which reads ``$...$`` as inline LaTeX.
+
+    Two prices in one markdown string ("entre $20.700 y $23.500") lost their
+    dollar signs and turned the text between them into math; the same happens
+    to an admin-typed label with a ``$`` in it next to a price.
+    """
+    return text.replace("$", "\\$")
+
+
+def md_ars(value: Decimal) -> str:
+    """``format_ars`` for ``st.markdown``: same text, dollar sign escaped."""
+    return escape_md_dollars(format_ars(value))
+
+
 def _format_pct(value: Decimal) -> str:
     """Percentage magnitude with the Spanish decimal comma: 10.0 -> "10,0"."""
     return str(abs(value)).replace(".", ",")

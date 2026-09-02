@@ -5,8 +5,9 @@ import os
 
 import streamlit as st
 
-from repuestos_radar.dashboard import admin, auth, data, detail, home, text_es
+from repuestos_radar.dashboard import admin, auth, data, detail, home, radar, text_es
 from repuestos_radar.report import format_day
+from repuestos_radar.sources import load_sources
 
 _COOKIE_NAME = "repuestos_radar_session"
 
@@ -54,6 +55,33 @@ def _write_cookie(controller, password: str) -> None:
         controller.set(_COOKIE_NAME, auth.make_token(password), max_age=auth.TOKEN_TTL_SECONDS)
 
 
+def _count_reachable_sources(loader=load_sources) -> int | None:
+    """Stores the radar can actually reach from the cloud (not cloud_blocked).
+
+    None when the registry cannot be read: a bad sources.yaml must never put
+    a traceback on the login screen, only drop the count from the status line.
+    """
+    try:
+        return sum(1 for source in loader() if not source.cloud_blocked)
+    except Exception:
+        return None
+
+
+@st.cache_data
+def _radar_store_count() -> int | None:
+    return _count_reachable_sources()
+
+
+def login_status_line(count: int | None) -> str:
+    """The mono line under the brand: singular for one store, plural otherwise
+    (zero included), and just the place when the count is unknown."""
+    if count is None:
+        return text_es.LOGIN_STATUS_NO_COUNT
+    if count == 1:
+        return text_es.LOGIN_STATUS_ONE
+    return text_es.LOGIN_STATUS.format(count=count)
+
+
 def _require_login() -> None:
     password = _expected_password()
     if not password:
@@ -66,7 +94,7 @@ def _require_login() -> None:
     if isinstance(token, str) and auth.token_valid(password, token):
         st.session_state["authed"] = True
         return
-    st.title(text_es.APP_TITLE)
+    radar.render_login_panel(login_status_line(_radar_store_count()))
     with st.form("login"):
         # "current-password": browsers offer save/autofill for an existing
         # password instead of Chrome's "create a strong password" sign-up prompt.
@@ -109,7 +137,7 @@ def _freshness_footer() -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title=text_es.APP_TITLE, page_icon="📱", layout="centered")
+    st.set_page_config(page_title=text_es.APP_TITLE, page_icon="📡", layout="centered")
     _require_login()
     st.navigation(_build_pages()).run()
     _freshness_footer()

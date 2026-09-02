@@ -30,3 +30,6 @@ htmlcov/
 *.swo
 .DS_Store
 Thumbs.db
+
+# Agent worktrees
+.claude/worktrees/

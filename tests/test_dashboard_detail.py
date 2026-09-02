@@ -66,7 +66,32 @@ def test_fair_price_line_small_sample_shows_range():
         basis=BASIS_MEDIAN,
     )
     line = detail._fair_price_line(analysis)
-    assert "$22.100" in line and "entre $20.700 y $23.500" in line
+    # dollars escaped: Streamlit markdown would otherwise read "$...$" as LaTeX
+    assert "**\\$22.100**" in line and "entre \\$20.700 y \\$23.500" in line
+    assert "$$" not in line
+
+
+def test_margin_line_keeps_both_escaped_dollar_signs():
+    from repuestos_radar.margin import TierMargin
+    from repuestos_radar.models import ServicePrice
+
+    service = ServicePrice(tracked_item_id=1, label="Cambio módulo A32", price_ars=Decimal("85000"))
+    tier_margin = TierMargin(
+        tier="incell", part_source="celuphone", part_price=Decimal("20700"), margin=Decimal("64300")
+    )
+    line = detail._margin_line(service, tier_margin, {"celuphone": "Celuphone"})
+    assert line == (
+        "Cambio módulo A32 (\\$85.000): ganás \\$64.300 con el repuesto de Celuphone (Incell/TFT)"
+    )
+    assert line.count("\\$") == 2 and "$$" not in line
+    loss = TierMargin(
+        tier="incell", part_source="celuphone", part_price=Decimal("90000"), margin=Decimal("-5000")
+    )
+    assert "perdés \\$5.000" in detail._margin_line(service, loss, {})
+    dollar_label = ServicePrice(
+        tracked_item_id=1, label="Promo $ finde", price_ars=Decimal("85000")
+    )
+    assert detail._margin_line(dollar_label, tier_margin, {}).startswith("Promo \\$ finde (")
 
 
 def test_fair_price_line_single_store_is_honest():
@@ -179,3 +204,61 @@ def test_trend_chart_is_static_and_uses_the_spanish_columns():
     assert y["title"] == text_es.TREND_CHART_PRICE_COLUMN
     (rows,) = spec["datasets"].values()
     assert [row[text_es.TREND_CHART_PRICE_COLUMN] for row in rows] == [20700.0, 21500.5]
+
+
+def test_offer_line_puts_the_price_first_as_a_heading():
+    line = detail._offer_line(
+        offer=StoreOffer(
+            source_slug="celuphone",
+            title="Modulo A32 incell",
+            price=Decimal("20700"),
+            url="https://celuphone.com.ar/p/1",
+            relevance="match",
+            tier="incell",
+        ),
+        names={"celuphone": "Celuphone"},
+        distance_text="1,8 km",
+    )
+    price_line, store_line = line.split("\n")
+    assert price_line == "#### \\$20.700"
+    assert store_line == "[Celuphone](https://celuphone.com.ar/p/1) — 1,8 km"
+
+
+def test_offer_line_warning_comes_after_the_store_line():
+    offer = StoreOffer(
+        source_slug="novocell",
+        title="x",
+        price=Decimal("9000"),
+        url="https://n",
+        relevance="low_confidence",
+        tier="incell",
+    )
+    lines = detail._offer_line(offer, names={}, distance_text=None).split("\n")
+    assert lines[0] == "#### \\$9.000"
+    assert lines[1].startswith("[novocell](https://n)")
+    assert lines[2].startswith(":orange[⚠")
+
+
+def test_fair_price_highlight_wraps_the_line_in_a_blue_background():
+    analysis = TierAnalysis(
+        tier="incell",
+        offers=(),
+        fair_price=Decimal("20000"),
+        price_min=Decimal("18000"),
+        price_max=Decimal("22000"),
+        store_count=4,
+        basis=BASIS_MEDIAN,
+    )
+    assert detail._fair_price_highlight(analysis) == (
+        f":blue-background[{detail._fair_price_line(analysis)}]"
+    )
+    single = TierAnalysis(
+        tier="incell",
+        offers=(),
+        fair_price=None,
+        price_min=Decimal("20000"),
+        price_max=Decimal("20000"),
+        store_count=1,
+        basis=BASIS_SINGLE_STORE,
+    )
+    assert detail._fair_price_highlight(single).startswith(":blue-background[*")
