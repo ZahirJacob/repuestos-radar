@@ -33,3 +33,6 @@ Thumbs.db
 
 # Agent worktrees
 .claude/worktrees/
+
+# Streamlit secrets (local only — the cloud keeps its own)
+.streamlit/secrets.toml

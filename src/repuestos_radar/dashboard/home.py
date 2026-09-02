@@ -1,16 +1,36 @@
 """Precios: one card per tracked part — best price, margin, warnings at a glance."""
 
+from decimal import Decimal
+
 import streamlit as st
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from repuestos_radar.analysis import TierAnalysis, analyze_item, latest_day, listings_for_day
 from repuestos_radar.dashboard import data, radar, text_es
-from repuestos_radar.dashboard.detail import source_names
+from repuestos_radar.dashboard.detail import distance_from_shop, distance_pill, source_names
 from repuestos_radar.margin import margins_for
 from repuestos_radar.models import ServicePrice, TrackedItem
 from repuestos_radar.relevance import Relevance
 from repuestos_radar.report import TIER_LABELS_ES, format_ars
+
+
+def _best_caption(store: str, tier_label: str, distance_text: str | None) -> str:
+    """``Mejor precio en Celuphone (Original)`` plus a distance pill from the
+    shop when both positions are known (the pill carries the pin)."""
+    caption = text_es.BEST_CAPTION.format(store=store, tier=tier_label)
+    if distance_text is not None:
+        caption += " " + distance_pill(distance_text)
+    return caption
+
+
+def _margin_line(margin: Decimal) -> str:
+    """The best margin as a colored line with an arrow: ``:green[↑ Ganás $14.300]``
+    or ``:red[↓ Perdés $1.200]``."""
+    amount = format_ars(abs(margin))
+    if margin >= 0:
+        return f":green[↑ {text_es.MARGIN_GAIN.format(amount=amount)}]"
+    return f":red[↓ {text_es.MARGIN_LOSS.format(amount=amount)}]"
 
 
 def _best_offer(analyses: list[TierAnalysis]):
@@ -54,14 +74,12 @@ def render() -> None:
                     tier_label = TIER_LABELS_ES[best.tier]
                     store = source_names().get(best.source_slug, best.source_slug)
                     st.markdown(f"## {format_ars(best.price)}")
-                    st.caption(f"{text_es.BEST_PREFIX} {store} ({tier_label})")
+                    st.caption(
+                        _best_caption(store, tier_label, distance_from_shop(best.source_slug))
+                    )
                     margin = _best_margin(session, item.id, analyses)
                     if margin is not None:
-                        amount = format_ars(abs(margin.margin))
-                        if margin.margin >= 0:
-                            st.markdown(f":green[{text_es.MARGIN_GAIN.format(amount=amount)}]")
-                        else:
-                            st.markdown(f":red[{text_es.MARGIN_LOSS.format(amount=amount)}]")
+                        st.markdown(_margin_line(margin.margin))
                     if _needs_review(analyses):
                         st.markdown(f":orange[{text_es.NEEDS_REVIEW_DOT}]")
                 if st.button(text_es.SEE_DETAIL, key=f"detail-{item.id}", use_container_width=True):

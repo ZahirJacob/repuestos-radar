@@ -21,7 +21,7 @@ dependencies = [
     # with `uv sync` from uv.lock, which skips optional extras.
     "streamlit>=1.45",
     "streamlit-cookies-controller>=0.0.4",
-    "streamlit-geolocation>=0.0.10",
+    "streamlit-js-eval==1.0.0",
 ]
 
 [project.optional-dependencies]

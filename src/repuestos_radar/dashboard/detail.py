@@ -1,5 +1,6 @@
 """Part detail: stores by tier, fair price, margins, trend — M3 priority order."""
 
+import math
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
@@ -100,14 +101,28 @@ def _sorted_offers(
     return tuple(sorted(offers, key=sort_value))
 
 
-def _adopt_reading(state, location: dict | None) -> bool:
-    """Adopt a NEW geolocation component reading as the reference point.
+def distance_from_shop(slug: str) -> str | None:
+    """Distance text from the Activcelu shop to a store, or None when either
+    position is unknown (the home cards use this; the detail page passes its
+    own reference point to ``_distance_for``)."""
+    return _distance_for(slug, distance.shop_location(), _store_coords())
 
-    The component replays its last reading on every rerun, not just on a
-    click, so only a reading that differs from the last one ADOPTED is taken.
-    Comparing against ``reference_point`` itself would re-adopt the stale
-    reading right after "Volver al local" clears it, making that button
-    visibly do nothing. Returns True when the state changed (caller reruns).
+
+def distance_pill(distance_text: str) -> str:
+    """A distance as a gray pill: ``:gray-background[📍 1,8 km]``."""
+    return f":gray-background[📍 {distance_text}]"
+
+
+def _adopt_reading(state, location: dict | None) -> bool:
+    """Adopt a geolocation reading as the reference point; True when the
+    state changed (the caller reruns).
+
+    A reading equal to the last one adopted is ignored. The guarantee this
+    gives: while a request is mounted, a rerun caused by any other widget
+    hands the same answer back, and it must not count as a new tap. It never
+    blocks a deliberate tap, because ``_request_location`` resets the baseline
+    on every tap and the component is unmounted right after adoption (so
+    "Volver al local" has nothing to replay against).
     """
     if not location or location.get("latitude") is None:
         return False
@@ -119,36 +134,131 @@ def _adopt_reading(state, location: dict | None) -> bool:
     return True
 
 
+def _reading_from_answer(answer: object) -> dict | None:
+    """Flatten a ``get_geolocation()`` answer to ``{"latitude", "longitude"}``.
+
+    The component answers None until the browser replies, then either
+    ``{"coords": {"latitude": ..., "longitude": ..., ...}, "timestamp": ...}``
+    or ``{"error": {"code": ..., "message": ...}}`` (permission denied and
+    the like are resolved, not raised). Anything else — no answer yet, a
+    missing or non-numeric coordinate, NaN/inf, or a point off the globe —
+    is treated as no reading.
+    """
+    if not isinstance(answer, dict):
+        return None
+    coords = answer.get("coords")
+    if not isinstance(coords, dict):
+        return None
+    try:
+        latitude = float(coords["latitude"])
+        longitude = float(coords["longitude"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not (math.isfinite(latitude) and math.isfinite(longitude)):
+        return None
+    if not (-90.0 <= latitude <= 90.0 and -180.0 <= longitude <= 180.0):
+        return None
+    return {"latitude": latitude, "longitude": longitude}
+
+
+def _answer_is_denied(answer: object) -> bool:
+    return isinstance(answer, dict) and bool(answer.get("error"))
+
+
+def _request_location(state) -> None:
+    """Tap on "Usar mi ubicación": ask the browser for a FRESH position.
+
+    Bumping the request id gives the component a new key, so a new iframe
+    asks the browser again instead of Streamlit replaying the previous
+    answer. The adopted-reading baseline is reset on purpose: a deliberate
+    second tap from the same spot must still take effect after "Volver al
+    local", and ``_adopt_reading`` would otherwise reject the identical
+    reading as a replay.
+    """
+    state["geo_requested"] = True
+    state["geo_request_id"] = state.get("geo_request_id", 0) + 1
+    state.pop("geo_last_reading", None)
+    state.pop("geo_denied", None)
+
+
+def _back_to_shop(state) -> None:
+    """Tap on "Volver al local": drop the visitor's position and any pending
+    or failed request. The geo reading is session-only and never stored."""
+    state.pop("reference_point", None)
+    state.pop("geo_requested", None)
+    state.pop("geo_denied", None)
+
+
+def _geolocation():
+    """The component's ``get_geolocation``, or None when it cannot be
+    imported. Guarded so that a broken or missing component degrades the page
+    to shop-only distances (the button is shown disabled) instead of a crash.
+    """
+    try:
+        from streamlit_js_eval import get_geolocation
+    except Exception:
+        return None
+    return get_geolocation
+
+
+def _ask_browser(request_id: int) -> object:
+    """Render the geolocation component for this request and return its
+    answer so far (None until the browser replies, or on any component
+    breakage)."""
+    ask = _geolocation()
+    if ask is None:
+        return None
+    try:
+        return ask(component_key=f"geo-{request_id}")
+    except Exception:
+        return None
+
+
 def _reference_point() -> tuple[float, float] | None:
     """The shop by default; the visitor's position while they opt in this visit."""
     shop = distance.shop_location()
-    current = st.session_state.get("reference_point")
-    columns = st.columns([3, 2])
-    with columns[0]:
+    state = st.session_state
+    current = state.get("reference_point")
+    with st.container(border=True):
         if current is not None:
             st.markdown(f"📍 {text_es.FROM_MY_LOCATION}")
-            if st.button(text_es.BACK_TO_SHOP):
-                st.session_state.pop("reference_point")
-                st.rerun()
         else:
             st.markdown(f"📍 {text_es.FROM_SHOP}" if shop else f"📍 {text_es.NO_SHOP_LOCATION}")
-    with columns[1]:
-        # The component import is guarded: under AppTest, or on any component
-        # breakage, the page degrades to shop-only distances (no button).
-        try:
-            from streamlit_geolocation import streamlit_geolocation
-
-            location = streamlit_geolocation()  # renders the permission button
-        except Exception:
-            location = None
-        if _adopt_reading(st.session_state, location):
+        use_column, back_column = st.columns(2)
+        if use_column.button(
+            text_es.USE_MY_LOCATION,
+            type="primary",
+            icon=":material/my_location:",
+            width="stretch",
+            disabled=_geolocation() is None,  # no component: an honest dead button
+        ):
+            _request_location(state)
+        if back_column.button(
+            text_es.BACK_TO_SHOP,
+            type="secondary",
+            icon=":material/storefront:",
+            width="stretch",
+        ):
+            _back_to_shop(state)
             st.rerun()
+        if state.get("geo_denied"):
+            st.caption(text_es.LOCATION_DENIED)
+        if state.get("geo_requested"):
+            answer = _ask_browser(state.get("geo_request_id", 0))
+            if _answer_is_denied(answer):
+                state["geo_denied"] = True
+                state.pop("geo_requested", None)
+                st.rerun()
+            elif _adopt_reading(state, _reading_from_answer(answer)):
+                # Adopted: stop rendering the component, so nothing replays.
+                state.pop("geo_requested", None)
+                st.rerun()
     return current or shop
 
 
 def _offer_line(offer: StoreOffer, names: dict[str, str], distance_text: str | None) -> str:
     """One store offer as a markdown block: price first and big, then the
-    store link (and distance), then any warning as an orange line.
+    store link with the distance and any warnings as pills on the same line.
 
     The price is a ``####`` heading rather than a two-column row: Streamlit
     stacks columns on a phone-width screen, so a side-by-side layout would
@@ -157,22 +267,33 @@ def _offer_line(offer: StoreOffer, names: dict[str, str], distance_text: str | N
     name = names.get(offer.source_slug, offer.source_slug)
     parts = [f"[{name}]({offer.url})"]
     if distance_text is not None:
-        parts.append(distance_text)
-    line = f"#### {md_ars(offer.price)}\n" + " — ".join(parts)
-    warnings = []
+        parts.append(distance_pill(distance_text))
     if offer.outlier:
-        warnings.append(text_es.OUTLIER_WARNING)
+        parts.append(f":orange-background[⚠ {text_es.OUTLIER_WARNING}]")
     if offer.relevance == Relevance.LOW_CONFIDENCE.value:
-        warnings.append(text_es.LOW_CONFIDENCE_WARNING)
-    if warnings:
-        line += f"  \n:orange[⚠ {'; '.join(warnings)}]"
-    return line
+        parts.append(f":orange-background[⚠ {text_es.LOW_CONFIDENCE_WARNING}]")
+    return f"#### {md_ars(offer.price)}\n" + " ".join(parts)
+
+
+def _tier_heading(analysis: TierAnalysis) -> str:
+    """``Original · 3 tiendas``: the tier label with its store count in gray."""
+    count = (
+        text_es.TIER_STORE_COUNT_ONE
+        if analysis.store_count == 1
+        else text_es.TIER_STORE_COUNT.format(count=analysis.store_count)
+    )
+    return f"{TIER_LABELS_ES[analysis.tier]} :gray[· {count}]"
+
+
+def _sort_key(choice: str | None) -> str:
+    """Segmented-control choice to sort key; nothing selected means price."""
+    return "distancia" if choice == text_es.SORT_DISTANCE else "precio"
 
 
 def _fair_price_highlight(analysis: TierAnalysis) -> str:
-    """The fair-price line on a colored background, so it stands apart from the
-    store rows above it (blue: informational, unlike the green/red of margins)."""
-    return f":blue-background[{_fair_price_line(analysis)}]"
+    """The fair-price line on a green background (the theme's accent), so it
+    stands apart from the store rows above it."""
+    return f":green-background[{_fair_price_line(analysis)}]"
 
 
 def _fair_price_line(analysis: TierAnalysis) -> str:
@@ -244,14 +365,18 @@ def render() -> None:
 
         reference = _reference_point()
         coords = _store_coords()
-        sort = st.radio(
-            text_es.SORT_LABEL, [text_es.SORT_PRICE, text_es.SORT_DISTANCE], horizontal=True
+        sort_key = _sort_key(
+            st.segmented_control(
+                text_es.SORT_LABEL,
+                [text_es.SORT_PRICE, text_es.SORT_DISTANCE],
+                default=text_es.SORT_PRICE,
+                selection_mode="single",
+            )
         )
-        sort_key = "distancia" if sort == text_es.SORT_DISTANCE else "precio"
 
         for analysis in analyses:
             with st.container(border=True):
-                st.subheader(TIER_LABELS_ES[analysis.tier])
+                st.subheader(_tier_heading(analysis))
                 for offer in _sorted_offers(analysis.offers, sort_key, reference, coords):
                     st.markdown(
                         _offer_line(

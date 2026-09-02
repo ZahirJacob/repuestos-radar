@@ -1,0 +1,34 @@
+# App theme, read by Streamlit Community Cloud on deploy and by `streamlit run`
+# locally. Light and dark follow the phone's setting; the app menu still lets
+# the user switch by hand. Colors come from the approved polish mockup; the
+# radar module keeps its own hard-coded palette in both themes on purpose.
+#
+# Fonts stay on Streamlit's bundled default (Source Sans): no web fonts.
+
+[theme]
+font = "sans-serif"
+baseRadius = "medium"
+buttonRadius = "medium"
+showWidgetBorder = true
+
+[theme.light]
+primaryColor = "#2a9d5c"
+backgroundColor = "#f6f8f7"
+secondaryBackgroundColor = "#eaf1ec"
+textColor = "#1f2a2a"
+borderColor = "#d9e1dd"
+linkColor = "#1d6f41"
+redColor = "#d64545"
+orangeColor = "#b26a00"
+greenColor = "#2a9d5c"
+
+[theme.dark]
+primaryColor = "#38d67a"
+backgroundColor = "#0e1918"
+secondaryBackgroundColor = "#16221f"
+textColor = "#e8efec"
+borderColor = "#2a3a36"
+linkColor = "#6fe0a0"
+redColor = "#ff6b6b"
+orangeColor = "#ffb347"
+greenColor = "#38d67a"
