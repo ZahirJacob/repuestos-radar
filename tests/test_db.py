@@ -43,6 +43,14 @@ def test_bare_postgresql_url_is_pinned_to_psycopg3() -> None:
     engine.dispose()
 
 
+def test_postgres_engine_pre_pings_pooled_connections() -> None:
+    # Neon suspends idle databases and drops connections; the long-lived
+    # dashboard engine must detect a dead pooled connection before using it.
+    engine = get_engine("postgresql://user:secret@db.example.neon.tech/radar")
+    assert engine.pool._pre_ping is True
+    engine.dispose()
+
+
 def test_explicit_psycopg_url_passes_through_unchanged() -> None:
     engine = get_engine("postgresql+psycopg://user:secret@db.example.neon.tech/radar")
     assert engine.url.drivername == "postgresql+psycopg"
