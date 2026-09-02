@@ -267,7 +267,6 @@ def test_cloud_blocked_true_blocks_every_channel(tmp_path: Path) -> None:
         ("[daily]", frozenset({"daily"})),
         ("[quick]", frozenset({"quick"})),
         ("[daily, quick]", frozenset({"daily", "quick"})),
-        ("[]", frozenset()),
     ],
 )
 def test_cloud_blocked_list_names_the_blocked_channels(
@@ -291,6 +290,7 @@ def test_cloud_blocked_list_names_the_blocked_channels(
         ("[nightly]", "unknown channel"),
         ("[daily, weekly]", "unknown channel"),
         ("[daily, daily]", "twice"),
+        ("[]", "use false or omit the key"),
     ],
 )
 def test_bad_cloud_blocked_is_rejected(tmp_path: Path, bad_value: str, message: str) -> None:

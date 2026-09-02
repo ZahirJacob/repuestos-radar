@@ -63,7 +63,11 @@ def _count_reachable_sources(loader=load_sources) -> int | None:
     a traceback on the login screen, only drop the count from the status line.
     """
     try:
-        return sum(1 for source in loader() if source.blocked_channels != CLOUD_CHANNELS)
+        return sum(
+            1
+            for source in loader()
+            if not all(source.is_blocked(channel) for channel in CLOUD_CHANNELS)
+        )
     except Exception:
         return None
 

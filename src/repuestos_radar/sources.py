@@ -90,11 +90,16 @@ def _parse_max_catalog_pages(index: int, value: object) -> int | None:
 
 def _parse_cloud_blocked(index: int, value: object) -> frozenset[str]:
     """``true`` = blocked on every channel, ``false``/absent = on none, or a
-    list of channel names (canonical spelling for "both" is ``true``)."""
+    non-empty list of channel names (``true`` is the spelling for "both",
+    ``false``/absent the only spelling for "nowhere")."""
     if value is None or value is False:
         return frozenset()
     if value is True:
         return CLOUD_CHANNELS
+    if value == []:
+        raise ValueError(
+            f"source #{index}: cloud_blocked: use false or omit the key to block nowhere"
+        )
     if not isinstance(value, list) or not all(isinstance(channel, str) for channel in value):
         raise ValueError(
             f"source #{index}: 'cloud_blocked' must be a boolean or a list of "

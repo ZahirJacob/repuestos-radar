@@ -62,10 +62,10 @@ catalog needs 160). A priority slug that no longer matches any category logs a w
 re-slugging a category gets noticed.
 
 A source can also carry `cloud_blocked`. That marks a store that answers HTTP 403 to our cloud
-IPs while still serving residential visitors. The two clouds differ (GitHub Actions runs the daily
-ingest, Streamlit Cloud runs the quick search), so the flag names channels: `true` blocks both
-(the canonical spelling for "both"), `[daily]` or `[quick]` blocks only that one, and `false` or
-no key blocks none. Per the courtesy policy, a blocked store is skipped, not worked around: the
+IPs while still serving residential visitors. The two clouds differ (the daily run lives on GitHub
+Actions, the dashboard's quick search on Streamlit Cloud), so the flag names channels: `true`
+blocks both (`[daily, quick]` also parses, but `true` is the spelling we use), `[daily]` or
+`[quick]` blocks only that one, and `false` or no key blocks none. Per the courtesy policy, a blocked store is skipped, not worked around: the
 daily run leaves out stores blocked for `daily` (the ingest report lists them as
 `status=skipped reason=cloud_blocked`) and the quick search leaves out stores blocked for `quick`
 (the dashboard says so in its own note), while an explicit `--source SLUG` still runs a store so it

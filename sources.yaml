@@ -52,8 +52,8 @@ sources:
       2026-09-02: it has answered HTTP 403 to every request from GitHub
       Actions since 2026-08-31 but still answers Streamlit Cloud (quick
       searches stored on 2026-09-01 and 2026-09-02), so cloud_blocked names
-      only the daily channel; the quick search keeps searching it. Remove
-      the key to re-enable the daily run.
+      only the daily channel; the quick search keeps searching it.
+      Removing the key re-enables it.
     cloud_blocked: [daily]
     lat: -32.9516
     lon: -60.6789
@@ -83,12 +83,12 @@ sources:
       WordPress installed under the /tienda/ subdirectory; robots.txt is
       checked at the host root and 404s (allow-all). Catalog is accessory-
       and battery-heavy — a "modulo" search returns few or no results.
-      2026-09-02: the site moved behind Cloudflare and answers HTTP 403 from
+      2026-09-02: the site moved behind Cloudflare and answers HTTP 403 to
       both clouds (GitHub Actions and Streamlit Cloud) while residential IPs
       still get 200, so cloud_blocked is true and the store is skipped by the
-      daily run and the quick search; flipping it back to false re-enables it.
-    # `true` blocks every channel (canonical spelling for "both"); a list such
-    # as `[daily]` or `[quick]` blocks only the named one(s).
+      daily run and the quick search. Removing the key re-enables it.
+    # `true` blocks every channel (`[daily, quick]` also parses, but `true` is
+    # the spelling we use); `[daily]` or `[quick]` blocks only that one.
     cloud_blocked: true
     lat: -32.9500
     lon: -60.6355

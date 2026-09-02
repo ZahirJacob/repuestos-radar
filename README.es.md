@@ -68,10 +68,11 @@ categoría, queda un warning en el log, así nos enteramos cuando una tienda ren
 slug de una categoría.
 
 Una fuente también puede llevar `cloud_blocked`. Marca una tienda que responde HTTP 403 a
-nuestras IPs de la nube aunque siga respondiendo normalmente desde IPs residenciales. Las dos nubes
-no son iguales (GitHub Actions corre la ingesta diaria, Streamlit Cloud corre la búsqueda rápida),
-así que la clave nombra canales: `true` bloquea los dos (la forma canónica de decir "ambos"),
-`[daily]` o `[quick]` bloquea solo ese, y `false` o sin la clave no bloquea ninguno. Según la
+nuestras IPs de la nube aunque siga atendiendo normalmente a las visitas desde IPs residenciales.
+Las dos nubes no son iguales (la corrida diaria corre en GitHub Actions, la búsqueda rápida del
+dashboard en Streamlit Cloud), así que la clave nombra canales: `true` bloquea los dos
+(`[daily, quick]` también se acepta, pero la forma que usamos es `true`), `[daily]` o `[quick]`
+bloquea solo ese, y `false` (o directamente no poner la clave) no bloquea ninguno. Según la
 política de cortesía, a una tienda bloqueada se la saltea, no se le busca la vuelta: la corrida
 diaria deja afuera las tiendas bloqueadas para `daily` (el reporte de ingesta las lista como
 `status=skipped reason=cloud_blocked`) y la búsqueda rápida deja afuera las bloqueadas para `quick`

@@ -348,7 +348,7 @@ def test_sort_key_falls_back_to_price():
 def test_distance_for_known_store():
     coords = {"celuphone": (-32.9386, -60.6801)}
     text = detail._distance_for("celuphone", (-32.9386, -60.6801), coords)
-    assert text == "0 m"
+    assert text == "0\u00a0m"
     assert detail._distance_for("nowhere", (-32.9386, -60.6801), coords) is None
     assert detail._distance_for("celuphone", None, coords) is None
 
