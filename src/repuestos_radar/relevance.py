@@ -78,25 +78,21 @@ SOFT: frozenset[str] = frozenset(
     }
 )
 
-# PART_WORDS: tokens that name a spare part. Only used for PHONE items: the
-# query for a whole handset ("samsung s24 ultra") matches every part sold for
-# that handset, and no query word can tell them apart — so a title with any
-# of these is a hard REJECT for a phone item. Normalized, accent-free (titles
-# go through ``normalize``). Editable as real data shows more.
+# Part words. Only used for PHONE items: the query for a whole handset
+# ("samsung s24 ultra") matches every part sold for that handset, and no query
+# word can tell them apart — so a part word in the title is a hard REJECT for
+# a phone item. Two EDITABLE tiers, both normalized, accent-free tokens
+# (titles go through ``normalize``).
+#
+# PART_WORDS: unambiguous part names; reject anywhere in the title.
 PART_WORDS: frozenset[str] = frozenset(
     {
         "modulo",
-        "pantalla",
-        "display",
-        "bateria",
         "flex",
         "tapa",
-        "pin",
         "placa",
         "lente",
-        "camara",
         "buzzer",
-        "altavoz",
         "boton",
         "botones",
         "bandeja",
@@ -106,18 +102,36 @@ PART_WORDS: frozenset[str] = frozenset(
         "tactil",
         "marco",
         "chasis",
-        "antena",
-        "microfono",
         "vibrador",
         "cubre",
         "repuesto",
         "repuestos",
-        "carga",
         "glass",
         "visor",
         "backcover",
         "teclado",
         "flexor",
+    }
+)
+
+# PART_WORDS_LEADING: part names that are ALSO handset specs ("Samsung Galaxy
+# S24 Ultra 256GB Cámara 200MP", "… Batería 5000mAh Carga Rápida"). These
+# reject only when they appear BEFORE the first query token in the title: a
+# part listing leads with the part name ("Bateria Samsung S24 Ultra", "CAMARA
+# DELANTERA SAMSUNG S24"), a handset listing leads with the brand/model and
+# lists its specs after it.
+PART_WORDS_LEADING: frozenset[str] = frozenset(
+    {
+        "pantalla",
+        "display",
+        "bateria",
+        "camara",
+        "carga",
+        "pin",
+        "altavoz",
+        "antena",
+        "microfono",
+        "memoria",
     }
 )
 
@@ -193,13 +207,30 @@ def _best_token_similarity(query_token: str, title_tokens: list[str]) -> float:
     return max((_fuzzy(query_token, t) for t in title_tokens), default=0.0)
 
 
+def _phone_part_words(query_set: set[str], title_tokens: list[str]) -> list[str]:
+    """Part words that reject a title for a PHONE item, sorted; empty if none.
+
+    PART_WORDS count anywhere in the title; PART_WORDS_LEADING only before
+    the first (non-stopword) query token. The query's own tokens are exempt
+    from both, as with HARD_REJECT/SOFT.
+    """
+    leading: list[str] = []
+    for token in title_tokens:
+        if token in query_set and token not in _STOPWORDS:
+            break
+        leading.append(token)
+    hits = (set(title_tokens) & PART_WORDS) | (set(leading) & PART_WORDS_LEADING)
+    return sorted(hits - query_set)
+
+
 def classify(query: str, title: str, kind: str = KIND_PART) -> RelevanceResult:
     """Classify one title against one query. Pure function, no side effects.
 
     ``kind`` is the tracked item's kind (``TRACKED_KINDS``). For a phone
-    item, a title carrying any PART_WORDS token is rejected before the
-    regular rules run; for a part item the rules are exactly the pre-kind
-    ones. An unknown kind raises ValueError.
+    item, a title carrying a part word (PART_WORDS anywhere, PART_WORDS_LEADING
+    ahead of the model) is rejected before the regular rules run; for a part
+    item the rules are exactly the pre-kind ones. An unknown kind raises
+    ValueError.
     """
     if kind not in TRACKED_KINDS:
         raise ValueError(f"unknown tracked item kind: {kind!r} (expected {sorted(TRACKED_KINDS)})")
@@ -208,20 +239,21 @@ def classify(query: str, title: str, kind: str = KIND_PART) -> RelevanceResult:
     if not norm_query or not norm_title:
         return RelevanceResult(Relevance.REJECT, 0.0, "empty query or title")
 
+    query_tokens = _tokens(norm_query)
+    title_tokens = _tokens(norm_title)
+    title_set = set(title_tokens)
+    query_set = set(query_tokens)
+
     # 0) Phone items: the query is the handset's name, so its words appear in
     # every spare part FOR that handset too. A part word in the title is the
     # only signal that separates "Samsung Galaxy S24 Ultra 256GB" from
     # "Bateria Samsung S24 Ultra" — hard reject on it.
     if kind == KIND_PHONE:
-        part_hits = sorted(set(_tokens(norm_title)) & PART_WORDS)
+        part_hits = _phone_part_words(query_set, title_tokens)
         if part_hits:
             return RelevanceResult(
                 Relevance.REJECT, 0.0, f"part word in a phone item: {part_hits[0]}"
             )
-
-    query_tokens = _tokens(norm_query)
-    title_tokens = _tokens(norm_title)
-    title_set = set(title_tokens)
 
     # 1) Required model numbers: every model-number token in the query must be
     # present in the title. A different model is a REJECT even if all other
@@ -234,7 +266,6 @@ def classify(query: str, title: str, kind: str = KIND_PART) -> RelevanceResult:
     # 2) Blocklist tiers. A term the query itself asked for (e.g. query
     # "cargador" or "auricular") is intended, not junk, so exclude query
     # tokens from both tiers.
-    query_set = set(query_tokens)
     part_tokens = [t for t in query_tokens if not _is_model_number(t) and t not in _STOPWORDS]
     # A phone query has no part words at all ("samsung", "ultra" name the
     # handset), so for a phone item nothing softens an accessory hit: a funda

@@ -8,6 +8,7 @@ import pytest
 from repuestos_radar.relevance import (
     HARD_REJECT,
     PART_WORDS,
+    PART_WORDS_LEADING,
     SOFT,
     ClassifiedListing,
     Relevance,
@@ -253,9 +254,50 @@ S24_ULTRA_PHONE_TITLES = [
 ]
 
 
-def test_part_words_are_normalized_tokens() -> None:
-    for word in PART_WORDS:
+def test_part_words_are_normalized_tokens_in_disjoint_tiers() -> None:
+    for word in PART_WORDS | PART_WORDS_LEADING:
         assert normalize(word) == word
+    assert not PART_WORDS & PART_WORDS_LEADING
+
+
+# Handset listings from phone stores list specs AFTER the brand/model; those
+# spec words are also part names and must not reject the phone itself.
+S24_ULTRA_SPEC_TITLES = [
+    "Samsung Galaxy S24 Ultra 256GB Cámara 200MP",
+    "Samsung Galaxy S24 Ultra Pantalla 6.7 Batería 5000mAh",
+]
+
+
+@pytest.mark.parametrize("title", S24_ULTRA_SPEC_TITLES)
+def test_phone_item_keeps_handset_titles_with_spec_words_after_the_model(title: str) -> None:
+    result = classify("samsung s24 ultra", title, kind="phone")
+    assert result.relevance is Relevance.MATCH
+    assert "part word" not in result.reason
+
+
+def test_phone_item_keeps_moto_handset_with_charging_spec() -> None:
+    result = classify("moto g35", "Moto G35 Carga Rápida 30W", kind="phone")
+    assert result.relevance is Relevance.MATCH
+
+
+def test_phone_item_rejects_unambiguous_part_word_after_the_model() -> None:
+    result = classify("samsung s24 ultra", "Samsung S24 Ultra Modulo Original", kind="phone")
+    assert result.relevance is Relevance.REJECT
+    assert result.reason == "part word in a phone item: modulo"
+
+
+def test_phone_item_rejects_spec_word_that_leads_the_title() -> None:
+    result = classify("samsung s24", "CAMARA DELANTERA SAMSUNG S24", kind="phone")
+    assert result.relevance is Relevance.REJECT
+    assert result.reason == "part word in a phone item: camara"
+
+
+def test_phone_item_exempts_the_querys_own_tokens_from_both_tiers() -> None:
+    # Mirrors HARD_REJECT/SOFT: a word the query itself asked for is intended.
+    leading = classify("carga rapida moto g35", "Carga Rapida Moto G35 30W", kind="phone")
+    assert leading.relevance is Relevance.MATCH
+    anywhere = classify("moto g35 glass", "Moto G35 Glass Edition", kind="phone")
+    assert anywhere.relevance is Relevance.MATCH
 
 
 @pytest.mark.parametrize("title", S24_ULTRA_PART_TITLES)
