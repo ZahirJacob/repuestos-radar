@@ -5,7 +5,7 @@ detail.py and the note below)."""
 from decimal import Decimal
 
 from repuestos_radar.analysis import BASIS_MEDIAN, BASIS_SINGLE_STORE, StoreOffer, TierAnalysis
-from repuestos_radar.dashboard import detail
+from repuestos_radar.dashboard import detail, text_es
 
 # AppTest note: `st.switch_page` in the installed Streamlit version only
 # switches to file-based pages ("path relative to the main script's
@@ -151,3 +151,31 @@ def test_sorted_offers_by_distance_puts_unknown_last():
     assert [o.source_slug for o in result] == ["near", "far", "web"]
     by_price = detail._sorted_offers((far, unknown, near), "precio", (-32.95, -60.65), coords)
     assert [o.source_slug for o in by_price] == ["far", "web", "near"]
+
+
+def test_trend_chart_is_static_and_uses_the_spanish_columns():
+    """The trend is an Altair chart with no tooltip and no pan/zoom: the
+    built-in st.line_chart tooltip stuck open after a touch on the client's
+    phone, and this spec is what keeps that from coming back."""
+    from datetime import date
+    from decimal import Decimal
+
+    from repuestos_radar.dashboard.detail import _trend_chart
+
+    spec = _trend_chart(
+        [(date(2026, 8, 30), Decimal("20700")), (date(2026, 9, 1), Decimal("21500.50"))]
+    ).to_dict()
+
+    assert spec["mark"] == {"type": "line", "point": True}
+    assert "tooltip" not in spec["encoding"]
+    assert "params" not in spec  # .interactive() would add selection params
+    x, y = spec["encoding"]["x"], spec["encoding"]["y"]
+    assert x["field"] == text_es.TREND_CHART_DAY_COLUMN
+    assert x["type"] == "temporal"
+    assert x["title"] == text_es.TREND_CHART_DAY_COLUMN
+    assert x["axis"] == {"format": "%d/%m"}
+    assert y["field"] == text_es.TREND_CHART_PRICE_COLUMN
+    assert y["type"] == "quantitative"
+    assert y["title"] == text_es.TREND_CHART_PRICE_COLUMN
+    (rows,) = spec["datasets"].values()
+    assert [row[text_es.TREND_CHART_PRICE_COLUMN] for row in rows] == [20700.0, 21500.5]

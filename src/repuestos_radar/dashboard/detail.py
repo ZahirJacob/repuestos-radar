@@ -1,7 +1,10 @@
 """Part detail: stores by tier, fair price, margins, trend — M3 priority order."""
 
 from collections.abc import Sequence
+from datetime import date
+from decimal import Decimal
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 from sqlalchemy import select
@@ -26,6 +29,39 @@ from repuestos_radar.sources import load_sources
 @st.cache_data
 def source_names() -> dict[str, str]:
     return {source.slug: source.name for source in load_sources()}
+
+
+def _trend_chart(series: Sequence[tuple[date, Decimal]]) -> alt.Chart:
+    """Fair-price history as a plain Altair line: no tooltip, no pan/zoom.
+
+    Not ``st.line_chart``: its built-in Vega tooltip sticks open after a
+    touch on phones (the client's main device). A deliberately static chart
+    is the fix, so this must stay free of tooltip encodings and of
+    ``.interactive()``.
+    """
+    frame = pd.DataFrame(
+        {
+            text_es.TREND_CHART_DAY_COLUMN: [d for d, _ in series],
+            text_es.TREND_CHART_PRICE_COLUMN: [float(p) for _, p in series],
+        }
+    )
+    return (
+        alt.Chart(frame)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X(
+                text_es.TREND_CHART_DAY_COLUMN,
+                type="temporal",
+                axis=alt.Axis(format="%d/%m"),
+                title=text_es.TREND_CHART_DAY_COLUMN,
+            ),
+            y=alt.Y(
+                text_es.TREND_CHART_PRICE_COLUMN,
+                type="quantitative",
+                title=text_es.TREND_CHART_PRICE_COLUMN,
+            ),
+        )
+    )
 
 
 @st.cache_data
@@ -223,12 +259,6 @@ def render() -> None:
             with st.expander(f"{text_es.TREND_CHART_LABEL} — {TIER_LABELS_ES[analysis.tier]}"):
                 series = data.fair_price_series(session, item.id, analysis.tier, day)
                 if len(series) >= 2:
-                    frame = pd.DataFrame(
-                        {
-                            text_es.TREND_CHART_DAY_COLUMN: [d for d, _ in series],
-                            text_es.TREND_CHART_PRICE_COLUMN: [float(p) for _, p in series],
-                        }
-                    ).set_index(text_es.TREND_CHART_DAY_COLUMN)
-                    st.line_chart(frame)
+                    st.altair_chart(_trend_chart(series), use_container_width=True)
                 else:
                     st.markdown(f"*{text_es.NO_TREND}*")
