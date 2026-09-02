@@ -56,13 +56,13 @@ sources:
     name: Celuphone
     url: https://celuphone.com.ar
     platform: woocommerce
-    address: Santa Fe 4245
+    address: Mendoza 1468
     city: Rosario
     trust_notes: >-
       Registered company (CELUPHONE SAS) with a verifiable Rosario address;
       ~4.4 stars on Google across 360+ reviews.
-    lat: -32.9386
-    lon: -60.6801
+    lat: -32.9503
+    lon: -60.6444
 
   - slug: litoral-accesorios
     name: Litoral Accesorios Celulares
