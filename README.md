@@ -100,9 +100,12 @@ Celuphone (Woo) ────┘                             source, date)       
   Postgres writes.
 - **M2 — Daily automation**: GitHub Actions cron, error handling, backoff, run reports.
 - **M3 — Analysis layer**: price history queries, best-price and trend calculations, margin math.
-- **M4 — Dashboard + admin page**: Streamlit app (ES-first, EN/ES toggle), public read-only views,
-  password-protected watchlist management.
+- **M4 — Dashboard + admin page**: phone-first Streamlit app in Spanish behind a shared
+  password — part cards, per-tier store ranking with straight-line distances, fair prices,
+  margins, quick search on demand, and an admin page for repair prices and tracked parts.
 - **M5 — Alerts and forecasting**: price-drop alerts and simple trend forecasts.
+- **Post-M4 — Public demo**: a portfolio-friendly deployment with sample data, no password, and an
+  ES/EN toggle.
 
 ## Dev setup
 
@@ -180,8 +183,8 @@ To trigger a run manually: Actions → "Daily ingestion" → "Run workflow", or
 
 ## Managing tracked items
 
-Until the dashboard's admin page exists (M4), the watchlist is managed with a small dev CLI (same
-`DATABASE_URL` contract as the runner):
+The watchlist is managed from the dashboard's admin page (see [Dashboard (M4)](#dashboard-m4));
+this small dev CLI remains as an internal team tool (same `DATABASE_URL` contract as the runner):
 
 ```bash
 python -m repuestos_radar.tracked add "modulo samsung a34"
@@ -197,8 +200,8 @@ skipped by the daily ingestion.
 ## Daily report and repair price list
 
 Two more dev CLIs sit on top of the stored history (same `DATABASE_URL` contract as the runner).
-Both are internal team tools — the client-facing surface is the M4 dashboard, which will show the
-same numbers.
+Both are internal team tools — the client-facing surface is the M4 dashboard, which shows the same
+numbers, and its admin page also manages the repair price list.
 
 ```bash
 python -m repuestos_radar.report
@@ -218,3 +221,43 @@ python -m repuestos_radar.services remove 2
 
 Manages the repair price list those margins are computed from: what the shop charges for each
 repair, linked to the tracked item whose part the repair consumes.
+
+## Dashboard (M4)
+
+The client-facing surface: a phone-first Streamlit app in Spanish, behind one shared password.
+Home shows a card per tracked part (best price, margin, warnings); the detail page ranks stores
+per quality tier with fair prices, straight-line distances, margins per repair, and price trends;
+the admin page (Ajustes) manages repair prices and tracked parts and runs a quick search on
+demand.
+
+To run it locally:
+
+```bash
+uv sync --extra dashboard
+DATABASE_URL=... APP_PASSWORD=... uv run streamlit run streamlit_app.py
+```
+
+In production the app runs on Streamlit Community Cloud, deployed from `main`. Its configuration
+lives in the app's secrets (app settings → Secrets in the Streamlit Cloud UI) — never committed to
+the repo:
+
+| Secret         | What it is                                                                 |
+| -------------- | -------------------------------------------------------------------------- |
+| `DATABASE_URL` | Postgres connection string — the same database the daily ingestion writes. |
+| `APP_PASSWORD` | The shared password the whole app sits behind.                             |
+| `SHOP_LAT`     | Shop latitude — the default reference point for distances.                 |
+| `SHOP_LON`     | Shop longitude — kept out of the public repo together with `SHOP_LAT`.     |
+
+Quick search ("Buscar precios ahora") queries every search-capable store's own search endpoint for
+one part, in parallel but politely (each store still sees a single sequential visitor), and is
+hard-capped at 10 runs per calendar day. The Tiendanube stores are daily-only: the platform's
+robots.txt disallows `/search/`, and per the courtesy policy we skip rather than work around — the
+daily crawl keeps covering them.
+
+### Screenshots
+
+Screenshots of the deployed app:
+
+![Home](docs/images/dashboard-home.png)
+![Detail](docs/images/dashboard-detail.png)
+![Admin](docs/images/dashboard-admin.png)
