@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "repuestos-radar"
-dynamic = ["version"]
+version = "0.1.0"
 description = "Market intelligence for phone repair shops: multi-source price tracking for phone spare parts and used phones."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -32,9 +32,6 @@ dev = [
     "streamlit-cookies-controller>=0.0.4",
     "streamlit-geolocation>=0.0.10",
 ]
-
-[tool.hatch.version]
-path = "src/repuestos_radar/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/repuestos_radar"]
