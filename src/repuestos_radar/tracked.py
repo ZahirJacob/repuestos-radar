@@ -1,8 +1,8 @@
-"""Minimal tracked-items management CLI (dev-facing, until M4's admin page).
+"""Minimal tracked-items management CLI (dev-facing twin of the dashboard's admin page).
 
 The watchlist — which searches the daily ingestion runs — lives in the
-``tracked_items`` table. Until the dashboard's password-protected admin page
-exists, this CLI is how it is managed:
+``tracked_items`` table. The client manages it from the dashboard's Ajustes
+page; this CLI is the scriptable route over the same helpers:
 
     python -m repuestos_radar.tracked add "modulo samsung a34"
     python -m repuestos_radar.tracked list
@@ -124,7 +124,7 @@ def _cmd_set_active(session: Session, args: argparse.Namespace, active: bool) ->
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m repuestos_radar.tracked",
-        description="Manage the tracked-items watchlist (until the M4 admin page exists).",
+        description="Manage the tracked-items watchlist (same data as the dashboard admin page).",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 

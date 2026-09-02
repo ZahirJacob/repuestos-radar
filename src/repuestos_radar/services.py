@@ -1,9 +1,9 @@
-"""Minimal service price-list CLI (dev-facing, until M4's admin page).
+"""Minimal service price-list CLI (dev-facing twin of the dashboard's admin page).
 
 What Activcelu charges the customer for each repair lives in the
 ``service_prices`` table; margins compare those prices against the day's
-part prices. Until the dashboard's admin page exists, this CLI is how the
-price list is managed:
+part prices. The client manages the price list from the dashboard's Ajustes
+page; this CLI is the scriptable route over the same helpers:
 
     python -m repuestos_radar.services add "Cambio módulo A32" --item 3 --price 75000
     python -m repuestos_radar.services list
@@ -92,24 +92,33 @@ def remove_service(session: Session, service_id: int) -> str:
     return REMOVED
 
 
-def _parse_price(raw: str) -> Decimal | None:
-    """A positive Decimal in whole centavos, or None after a one-line error.
+def parse_price(raw: str) -> tuple[Decimal | None, str | None]:
+    """A positive Decimal in whole centavos, or a machine-checkable reason.
 
     Decimal happily parses "nan" and "inf", so finiteness is checked before
     the sign (comparing NaN raises InvalidOperation). Quantizing here makes
-    the echoed price match what Numeric(12, 2) will store.
+    the value match what Numeric(12, 2) will store. The dashboard admin page
+    shares this exact validation with the CLI.
     """
     try:
         price = Decimal(raw)
     except InvalidOperation:
-        price = None
-    if price is None or not price.is_finite():
-        print(f'error: price must be a number, got "{raw}"')
-        return None
+        return None, "not a number"
+    if not price.is_finite():
+        return None, "not a number"
     if price <= 0:
+        return None, "not positive"
+    return price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), None
+
+
+def _parse_price(raw: str) -> Decimal | None:
+    """CLI wrapper over parse_price: same one-line error messages as always."""
+    price, reason = parse_price(raw)
+    if reason == "not a number":
+        print(f'error: price must be a number, got "{raw}"')
+    elif reason == "not positive":
         print("error: price must be positive")
-        return None
-    return price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return price
 
 
 def _describe(service: ServicePrice) -> str:
@@ -186,7 +195,7 @@ def _cmd_remove(session: Session, args: argparse.Namespace) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m repuestos_radar.services",
-        description="Manage the repair price list (until the M4 admin page exists).",
+        description="Manage the repair price list (same data as the dashboard's Ajustes page).",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
