@@ -8,10 +8,10 @@ URL instead.
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from repuestos_radar.models import Base
+from repuestos_radar.models import KIND_PART, Base
 
 
 def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
@@ -50,5 +50,32 @@ def get_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 
 def init_db(engine: Engine) -> None:
-    """Create all tables. Known simplification: no migrations yet (create_all only)."""
+    """Create all tables, then apply the one hand-rolled migration we carry.
+
+    Known simplification: no Alembic yet. ``create_all`` creates missing
+    TABLES but never adds columns to existing ones, so ``tracked_items.kind``
+    (added after the first deploy) is back-filled here by
+    ``_add_tracked_item_kind``. Idempotent, so every entry point (ingest, the
+    CLIs, the dashboard) keeps calling this at startup. This is the only
+    migration until Alembic lands; a second one should trigger that move
+    rather than grow this function.
+    """
     Base.metadata.create_all(engine)
+    _add_tracked_item_kind(engine)
+
+
+# DDL both SQLite and Postgres accept: ADD COLUMN with a constant default also
+# fills existing rows. Same type as the model column; the CHECK constraint
+# lives on the model only (fresh databases get it from create_all).
+_ADD_KIND_COLUMN = (
+    f"ALTER TABLE tracked_items ADD COLUMN kind VARCHAR(10) NOT NULL DEFAULT '{KIND_PART}'"
+)
+
+
+def _add_tracked_item_kind(engine: Engine) -> None:
+    """Add ``tracked_items.kind`` when the table predates the column; no-op otherwise."""
+    columns = {column["name"] for column in inspect(engine).get_columns("tracked_items")}
+    if "kind" in columns:
+        return
+    with engine.begin() as connection:
+        connection.execute(text(_ADD_KIND_COLUMN))

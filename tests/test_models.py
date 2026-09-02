@@ -118,3 +118,18 @@ def test_quick_search_run_rows_store_day_and_timestamp(session):
     stored = session.get(QuickSearchRun, run.id)
     assert stored.ran_on == date(2026, 9, 1)
     assert stored.ran_at is not None
+
+
+def test_tracked_item_kind_defaults_to_part_and_stores_phone(session: Session) -> None:
+    session.add(TrackedItem(query="modulo samsung a32"))
+    session.add(TrackedItem(query="samsung s24 ultra", kind="phone"))
+    session.commit()
+
+    kinds = dict(session.execute(select(TrackedItem.query, TrackedItem.kind)).all())
+    assert kinds == {"modulo samsung a32": "part", "samsung s24 ultra": "phone"}
+
+
+def test_tracked_item_kind_is_checked_by_the_database(session: Session) -> None:
+    session.add(TrackedItem(query="ipad", kind="tablet"))
+    with pytest.raises(IntegrityError):
+        session.commit()
