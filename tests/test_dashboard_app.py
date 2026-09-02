@@ -12,7 +12,7 @@ from repuestos_radar.dashboard import app as dashboard_app
 from repuestos_radar.dashboard import data
 from repuestos_radar.db import get_engine, get_session_factory, init_db
 from repuestos_radar.models import Listing, ServicePrice, TrackedItem
-from repuestos_radar.sources import load_sources
+from repuestos_radar.sources import CLOUD_CHANNELS, Source, load_sources
 
 _ENTRY_SCRIPT = Path(__file__).resolve().parent.parent / "streamlit_app.py"
 
@@ -90,7 +90,7 @@ def test_login_screen_shows_the_radar_panel_instead_of_a_title(seeded_db):
     panels = [m.value for m in at.markdown if "<svg" in m.value]
     assert len(panels) == 1
     assert "Repuestos Radar" in panels[0]
-    reachable = sum(1 for source in load_sources() if not source.cloud_blocked)
+    reachable = sum(1 for source in load_sources() if source.blocked_channels != CLOUD_CHANNELS)
     assert reachable > 1  # the plural line is the one on screen today
     assert f"Desde Rosario · {reachable} tiendas en el radar" in panels[0]
 
@@ -108,8 +108,33 @@ def test_reachable_source_count_fails_soft_on_a_bad_registry():
 
     assert dashboard_app._count_reachable_sources(broken_loader) is None
     assert dashboard_app._count_reachable_sources() == sum(
-        1 for source in load_sources() if not source.cloud_blocked
+        1 for source in load_sources() if source.blocked_channels != CLOUD_CHANNELS
     )
+
+
+def test_reachable_source_count_keeps_a_store_blocked_on_one_channel_only():
+    """Evophone-style store (blocked for daily, searchable from Streamlit
+    Cloud) still counts as "in the radar"; a store blocked on both does not."""
+
+    def make(slug: str, blocked: frozenset[str]) -> Source:
+        return Source(
+            slug=slug,
+            name=slug,
+            url=f"https://{slug}.example",
+            platform="woocommerce",
+            address="x",
+            city="Rosario",
+            trust_notes="t",
+            blocked_channels=blocked,
+        )
+
+    registry = [
+        make("open", frozenset()),
+        make("daily-only", frozenset({"daily"})),
+        make("quick-only", frozenset({"quick"})),
+        make("both", CLOUD_CHANNELS),
+    ]
+    assert dashboard_app._count_reachable_sources(lambda: registry) == 3
 
 
 def test_pages_carry_the_logo_title(seeded_db):
@@ -202,7 +227,7 @@ def test_home_card_caption_and_margin_lines():
         "Mejor precio en Celuphone (Original)"
     )
     assert home._best_caption("Celuphone", "Original", "1,8 km") == (
-        "Mejor precio en Celuphone (Original) :gray-background[📍 1,8 km]"
+        "Mejor precio en Celuphone (Original) :gray-background[📍\u00a01,8 km]"
     )
     assert home._margin_line(Decimal("14300")) == ":green[↑ Ganás $14.300]"
     assert home._margin_line(Decimal("0")) == ":green[↑ Ganás $0]"

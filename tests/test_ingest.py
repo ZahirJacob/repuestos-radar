@@ -25,7 +25,9 @@ from repuestos_radar.schema import Condition, NormalizedListing
 from repuestos_radar.sources import Source
 
 
-def make_source(slug: str, platform: str = "woocommerce", *, cloud_blocked: bool = False) -> Source:
+def make_source(
+    slug: str, platform: str = "woocommerce", *, blocked: frozenset[str] = frozenset()
+) -> Source:
     return Source(
         slug=slug,
         name=slug.title(),
@@ -34,8 +36,11 @@ def make_source(slug: str, platform: str = "woocommerce", *, cloud_blocked: bool
         address="Calle Falsa 123",
         city="Rosario",
         trust_notes="Test shop.",
-        cloud_blocked=cloud_blocked,
+        blocked_channels=blocked,
     )
+
+
+BOTH = frozenset({"daily", "quick"})
 
 
 def make_listing(slug: str, external_id: str, title: str) -> NormalizedListing:
@@ -347,22 +352,26 @@ def test_skipped_sources_do_not_rescue_a_failed_run(session: Session) -> None:
     assert "summary: sources_ok=0/1 skipped=1" in format_report(report)
 
 
-def test_select_sources_default_run_leaves_out_cloud_blocked() -> None:
+def test_select_sources_default_run_leaves_out_daily_blocked_only() -> None:
+    """Only the daily channel matters here: a store blocked for the quick
+    search alone (or on both channels) is skipped only when daily is named."""
     registry = [
         make_source("shop-a"),
-        make_source("blocked", cloud_blocked=True),
+        make_source("blocked", blocked=BOTH),
+        make_source("daily-only", blocked=frozenset({"daily"})),
+        make_source("quick-only", blocked=frozenset({"quick"})),
         make_source("shop-c"),
     ]
 
     chosen, skipped = _select_sources(registry, None)
 
-    assert [s.slug for s in chosen] == ["shop-a", "shop-c"]
-    assert skipped == ["blocked"]
+    assert [s.slug for s in chosen] == ["shop-a", "quick-only", "shop-c"]
+    assert skipped == ["blocked", "daily-only"]
 
 
 def test_select_sources_explicit_slug_still_runs_a_cloud_blocked_store() -> None:
     """--source SLUG is how a blocked store gets re-tested, so it must run."""
-    registry = [make_source("shop-a"), make_source("blocked", cloud_blocked=True)]
+    registry = [make_source("shop-a"), make_source("blocked", blocked=BOTH)]
 
     chosen, skipped = _select_sources(registry, ["blocked"])
 
@@ -603,7 +612,9 @@ def patch_registry(
     monkeypatch.setattr(
         repuestos_radar.ingest,
         "load_sources",
-        lambda: [make_source(slug, cloud_blocked=slug in blocked) for slug in slugs],
+        lambda: [
+            make_source(slug, blocked=BOTH if slug in blocked else frozenset()) for slug in slugs
+        ],
     )
     monkeypatch.setattr(repuestos_radar.ingest, "build_adapters", fake_build)
     return built

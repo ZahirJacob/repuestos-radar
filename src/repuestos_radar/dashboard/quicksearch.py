@@ -10,9 +10,9 @@ sequential PoliteHttpClient — per-host the 1-second delay is intact; no store
 sees more load than a single polite visitor. Tiendanube storefronts are
 skipped: the platform robots-disallows /search/, and their catalog crawl is
 exactly the slow path this feature avoids (skip, don't work around). Sources
-flagged cloud_blocked in the registry (they 403 from datacenter IPs such as
+flagged cloud_blocked for the ``quick`` channel in the registry (they 403
 Streamlit Cloud) are left out too, and reported separately so the UI can say
-why.
+why; a store blocked only for the daily run is still searched here.
 
 A hard daily cap (DAILY_CAP runs per Argentine calendar day, recorded in the
 quick_search_runs table) keeps the feature honest even if the button gets
@@ -80,7 +80,8 @@ class QuickSearchReport:
     capped: bool = False
     sources: list[QuickSourceReport] = field(default_factory=list)
     blocked: list[QuickSourceReport] = field(default_factory=list)
-    """cloud_blocked sources left out of the search (registry order, never searched).
+    """Sources cloud_blocked for the quick channel, left out of the search
+    (registry order, never searched).
 
     Kept apart from ``sources`` so the UI can explain them with their own note
     instead of the crawl-only one.
@@ -127,7 +128,7 @@ def quick_search(
     Sources whose platform is not in SEARCHABLE_PLATFORMS appear in the report
     with searched=False (the UI explains them with QUICK_SEARCH_SKIPPED_NOTE,
     "el radar solo busca ahí una vez por día"). Sources
-    flagged cloud_blocked are not searched either; they land in
+    flagged cloud_blocked for the quick channel are not searched either; they land in
     ``report.blocked`` so the UI can show a separate note. When the
     daily cap is already spent the report comes back capped=True and nothing
     is fetched. ``adapters`` exists for tests (fakes); production callers let
@@ -145,9 +146,9 @@ def quick_search(
         report.blocked = [
             QuickSourceReport(slug=s.slug, name=s.name, searched=False)
             for s in sources
-            if s.cloud_blocked
+            if s.is_blocked("quick")
         ]
-        sources = [s for s in sources if not s.cloud_blocked]
+        sources = [s for s in sources if not s.is_blocked("quick")]
         searchable = [s for s in sources if s.platform in SEARCHABLE_PLATFORMS]
         for source in sources:
             if source.platform not in SEARCHABLE_PLATFORMS:

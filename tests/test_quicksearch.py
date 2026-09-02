@@ -23,7 +23,7 @@ from repuestos_radar.schema import Condition, NormalizedListing
 from repuestos_radar.sources import Source
 
 
-def _source(slug: str, platform: str, *, cloud_blocked: bool = False) -> Source:
+def _source(slug: str, platform: str, *, blocked: frozenset[str] = frozenset()) -> Source:
     return Source(
         slug=slug,
         name=slug.title(),
@@ -32,7 +32,7 @@ def _source(slug: str, platform: str, *, cloud_blocked: bool = False) -> Source:
         address="x",
         city="Rosario",
         trust_notes="test",
-        cloud_blocked=cloud_blocked,
+        blocked_channels=blocked,
     )
 
 
@@ -132,13 +132,16 @@ def test_one_failing_source_does_not_abort_the_others(session, item):
     assert by_slug["bad"].failure == "bad: HTTP 500"
 
 
-def test_cloud_blocked_sources_are_left_out_and_reported_apart(session, item, monkeypatch):
-    """A cloud_blocked store gets no adapter (never contacted) and is listed
-    in report.blocked — not among the crawl-only sources, which carry a
-    different explanation in the UI."""
+def test_quick_blocked_sources_are_left_out_and_reported_apart(session, item, monkeypatch):
+    """A store cloud_blocked for the quick channel gets no adapter (never
+    contacted) and is listed in report.blocked — not among the crawl-only
+    sources, which carry a different explanation in the UI. A store blocked
+    only for the daily run is searched like any other."""
     woo = _source("shopa", "woocommerce")
-    blocked = _source("shopb", "woocommerce", cloud_blocked=True)
+    blocked = _source("shopb", "woocommerce", blocked=frozenset({"daily", "quick"}))
     nube = _source("shopc", "tiendanube")
+    daily_only = _source("shopd", "woocommerce", blocked=frozenset({"daily"}))
+    quick_only = _source("shope", "woocommerce", blocked=frozenset({"quick"}))
     built: list[list[str]] = []
 
     def fake_build(sources):
@@ -149,13 +152,16 @@ def test_cloud_blocked_sources_are_left_out_and_reported_apart(session, item, mo
 
     monkeypatch.setattr(quicksearch_module, "build_adapters", fake_build)
 
-    report = quick_search(session, item, [woo, blocked, nube])
+    report = quick_search(session, item, [woo, blocked, nube, daily_only, quick_only])
 
-    assert built == [["shopa"]]
-    assert [s.slug for s in report.sources] == ["shopa", "shopc"]
-    assert [(s.slug, s.name, s.searched) for s in report.blocked] == [("shopb", "Shopb", False)]
+    assert built == [["shopa", "shopd"]]
+    assert [s.slug for s in report.sources] == ["shopa", "shopc", "shopd"]
+    assert [(s.slug, s.name, s.searched) for s in report.blocked] == [
+        ("shopb", "Shopb", False),
+        ("shope", "Shope", False),
+    ]
     stored = session.scalars(select(Listing)).all()
-    assert {row.source_slug for row in stored} == {"shopa"}
+    assert {row.source_slug for row in stored} == {"shopa", "shopd"}
 
 
 def test_progress_callback_fires_once_per_searched_source(session, item):

@@ -109,8 +109,12 @@ def distance_from_shop(slug: str) -> str | None:
 
 
 def distance_pill(distance_text: str) -> str:
-    """A distance as a gray pill: ``:gray-background[📍 1,8 km]``."""
-    return f":gray-background[📍 {distance_text}]"
+    """A distance as a gray pill: ``:gray-background[📍\u00a01,8 km]``.
+
+    The space after the pin is non-breaking: on a phone-width screen the
+    pill otherwise wraps between the pin and the number.
+    """
+    return f":gray-background[📍\u00a0{distance_text}]"
 
 
 def _adopt_reading(state, location: dict | None) -> bool:
@@ -268,10 +272,11 @@ def _offer_line(offer: StoreOffer, names: dict[str, str], distance_text: str | N
     parts = [f"[{name}]({offer.url})"]
     if distance_text is not None:
         parts.append(distance_pill(distance_text))
+    # Non-breaking space after the marker, same reason as in distance_pill.
     if offer.outlier:
-        parts.append(f":orange-background[⚠ {text_es.OUTLIER_WARNING}]")
+        parts.append(f":orange-background[⚠\u00a0{text_es.OUTLIER_WARNING}]")
     if offer.relevance == Relevance.LOW_CONFIDENCE.value:
-        parts.append(f":orange-background[⚠ {text_es.LOW_CONFIDENCE_WARNING}]")
+        parts.append(f":orange-background[⚠\u00a0{text_es.LOW_CONFIDENCE_WARNING}]")
     return f"#### {md_ars(offer.price)}\n" + " ".join(parts)
 
 

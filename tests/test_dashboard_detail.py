@@ -308,7 +308,8 @@ def test_reference_point_denied_answer_shows_the_caption(monkeypatch):
 
 
 def test_distance_pill_and_distance_from_shop(monkeypatch):
-    assert detail.distance_pill("1,8 km") == ":gray-background[📍 1,8 km]"
+    # Non-breaking space after the pin so the pill never wraps on a phone.
+    assert detail.distance_pill("1,8 km") == ":gray-background[📍\u00a01,8 km]"
     monkeypatch.setenv("SHOP_LAT", "-32.9468")
     monkeypatch.setenv("SHOP_LON", "-60.6393")
     coords = detail._store_coords()
@@ -427,7 +428,9 @@ def test_offer_line_puts_the_price_first_as_a_heading():
     )
     price_line, store_line = line.split("\n")
     assert price_line == "#### \\$20.700"
-    assert store_line == "[Celuphone](https://celuphone.com.ar/p/1) :gray-background[📍 1,8 km]"
+    assert store_line == (
+        "[Celuphone](https://celuphone.com.ar/p/1) :gray-background[📍\u00a01,8 km]"
+    )
 
 
 def test_offer_line_warnings_are_orange_pills_on_the_store_line():
@@ -443,9 +446,9 @@ def test_offer_line_warnings_are_orange_pills_on_the_store_line():
     lines = detail._offer_line(offer, names={}, distance_text="3,4 km").split("\n")
     assert lines == [
         "#### \\$9.000",
-        "[novocell](https://n) :gray-background[📍 3,4 km] "
-        f":orange-background[⚠ {text_es.OUTLIER_WARNING}] "
-        f":orange-background[⚠ {text_es.LOW_CONFIDENCE_WARNING}]",
+        "[novocell](https://n) :gray-background[📍\u00a03,4 km] "
+        f":orange-background[⚠\u00a0{text_es.OUTLIER_WARNING}] "
+        f":orange-background[⚠\u00a0{text_es.LOW_CONFIDENCE_WARNING}]",
     ]
 
 

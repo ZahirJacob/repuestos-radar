@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from repuestos_radar.sources import Source, load_sources
+from repuestos_radar.sources import CLOUD_CHANNELS, Source, load_sources
 
 VALID_YAML = """
 sources:
@@ -56,9 +56,9 @@ def test_loads_sources_with_fields(tmp_path: Path) -> None:
     assert novocell.city == "Rosario"
     assert novocell.trust_notes == "Established storefront."
     assert novocell.scraping_notes is None
-    assert novocell.cloud_blocked is False
+    assert novocell.blocked_channels == frozenset()
     assert sources[1].scraping_notes == "Cloudflare filters default bot user-agents."
-    assert sources[1].cloud_blocked is True
+    assert sources[1].blocked_channels == CLOUD_CHANNELS
 
 
 def test_source_is_frozen(tmp_path: Path) -> None:
@@ -240,28 +240,96 @@ def test_real_registry_rosario_sources_have_coordinates():
         assert by_slug[slug].lat is not None, slug
 
 
-def test_cloud_blocked_defaults_to_false(tmp_path: Path) -> None:
+def test_cloud_blocked_absent_blocks_nothing(tmp_path: Path) -> None:
     (source,) = load_sources(write_yaml(tmp_path, BASE_ENTRY))
-    assert source.cloud_blocked is False
+    assert source.blocked_channels == frozenset()
+    assert not source.is_blocked("daily")
+    assert not source.is_blocked("quick")
 
 
-@pytest.mark.parametrize("bad_value", ['"yes"', "1", "0", "[true]"])
-def test_non_boolean_cloud_blocked_is_rejected(tmp_path: Path, bad_value: str) -> None:
+def test_cloud_blocked_false_blocks_nothing(tmp_path: Path) -> None:
+    yaml_text = BASE_ENTRY + "    cloud_blocked: false\n"
+    (source,) = load_sources(write_yaml(tmp_path, yaml_text))
+    assert source.blocked_channels == frozenset()
+
+
+def test_cloud_blocked_true_blocks_every_channel(tmp_path: Path) -> None:
+    """``true`` is the canonical spelling for "both channels"."""
+    (_, evophone) = load_sources(write_yaml(tmp_path, VALID_YAML))
+    assert evophone.blocked_channels == CLOUD_CHANNELS
+    assert evophone.is_blocked("daily")
+    assert evophone.is_blocked("quick")
+
+
+@pytest.mark.parametrize(
+    ("yaml_value", "expected"),
+    [
+        ("[daily]", frozenset({"daily"})),
+        ("[quick]", frozenset({"quick"})),
+        ("[daily, quick]", frozenset({"daily", "quick"})),
+        ("[]", frozenset()),
+    ],
+)
+def test_cloud_blocked_list_names_the_blocked_channels(
+    tmp_path: Path, yaml_value: str, expected: frozenset[str]
+) -> None:
+    yaml_text = VALID_YAML.replace("cloud_blocked: true", f"cloud_blocked: {yaml_value}", 1)
+    (_, evophone) = load_sources(write_yaml(tmp_path, yaml_text))
+    assert evophone.blocked_channels == expected
+    assert evophone.is_blocked("daily") is ("daily" in expected)
+    assert evophone.is_blocked("quick") is ("quick" in expected)
+
+
+@pytest.mark.parametrize(
+    ("bad_value", "message"),
+    [
+        ('"yes"', "boolean or a list"),
+        ("1", "boolean or a list"),
+        ("0", "boolean or a list"),
+        ("[true]", "boolean or a list"),
+        ("[daily, 3]", "boolean or a list"),
+        ("[nightly]", "unknown channel"),
+        ("[daily, weekly]", "unknown channel"),
+        ("[daily, daily]", "twice"),
+    ],
+)
+def test_bad_cloud_blocked_is_rejected(tmp_path: Path, bad_value: str, message: str) -> None:
     broken = VALID_YAML.replace("cloud_blocked: true", f"cloud_blocked: {bad_value}", 1)
-    with pytest.raises(ValueError, match="cloud_blocked"):
+    with pytest.raises(ValueError, match=f"cloud_blocked.*{message}"):
         load_sources(write_yaml(tmp_path, broken))
 
 
+def test_is_blocked_rejects_an_unknown_channel(tmp_path: Path) -> None:
+    (source,) = load_sources(write_yaml(tmp_path, BASE_ENTRY))
+    with pytest.raises(ValueError, match="unknown cloud channel"):
+        source.is_blocked("nightly")
+
+
 def test_real_registry_cloud_blocked_stores_explain_themselves() -> None:
-    """Every store flagged cloud_blocked says why in its scraping_notes (the
+    """Every store blocked on any channel says why in its scraping_notes (the
     403s and the flag), keeps its coordinates so the dashboard can still name
-    it and measure distance, and the flag is a real bool on every source.
-    The exact set of flagged stores is not pinned: flipping one back to
-    false when it starts answering again must not break CI."""
+    it and measure distance, and the channel set is well-formed on every
+    source. The exact set of flagged stores is not pinned: unflagging one
+    when it starts answering again must not break CI."""
     for source in load_sources():
-        assert isinstance(source.cloud_blocked, bool), source.slug
-        if source.cloud_blocked:
+        assert isinstance(source.blocked_channels, frozenset), source.slug
+        assert source.blocked_channels <= CLOUD_CHANNELS, source.slug
+        if source.blocked_channels:
             assert source.scraping_notes, source.slug
             assert "403" in source.scraping_notes, source.slug
             assert "cloud_blocked" in source.scraping_notes, source.slug
             assert source.lat is not None, source.slug
+
+
+def test_real_registry_evophone_is_blocked_for_daily_only() -> None:
+    """Evophone 403s GitHub Actions but answers Streamlit Cloud (quick-search
+    listings stored 2026-09-01/02), so it must stay in the quick search."""
+    evophone = next(source for source in load_sources() if source.slug == "evophone")
+    assert evophone.is_blocked("daily")
+    assert not evophone.is_blocked("quick")
+
+
+def test_real_registry_litoral_is_blocked_for_both_channels() -> None:
+    litoral = next(source for source in load_sources() if source.slug == "litoral-accesorios")
+    assert litoral.is_blocked("daily")
+    assert litoral.is_blocked("quick")

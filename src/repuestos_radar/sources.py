@@ -13,6 +13,14 @@ import yaml
 _DEFAULT_PATH = Path(__file__).parents[2] / "sources.yaml"
 _REQUIRED_FIELDS = ("slug", "name", "url", "platform", "address", "city", "trust_notes")
 
+CLOUD_CHANNELS = frozenset({"daily", "quick"})
+"""The two cloud channels a store can be blocked on.
+
+``daily`` is the scheduled ingest (GitHub Actions); ``quick`` is the dashboard
+quick search (Streamlit Community Cloud). They run from different datacenter
+IP ranges, so a store's bot filter can answer one and 403 the other.
+"""
+
 
 @dataclass(frozen=True, slots=True)
 class Source:
@@ -39,13 +47,21 @@ class Source:
     lat: float | None = None
     """Store latitude, hand-entered (see sources.yaml). Both lat and lon or neither."""
     lon: float | None = None
-    cloud_blocked: bool = False
-    """True when the store 403s from datacenter IPs (GitHub Actions, Streamlit
-    Cloud) while still answering residential ones. The default ingest run and
-    the quick search leave it out; an explicit ``--source SLUG`` still runs it
-    so the store can be re-tested. The store stays in the registry for names
-    and distances. Flip it back to False to re-enable the store.
+    blocked_channels: frozenset[str] = frozenset()
+    """Cloud channels (a subset of :data:`CLOUD_CHANNELS`) the store 403s from
+    while still answering residential IPs; parsed from ``cloud_blocked`` in
+    sources.yaml. A channel that is blocked leaves the store out (the daily
+    run reports it as skipped, the quick search lists it apart); an explicit
+    ``--source SLUG`` still runs it so the store can be re-tested. The store
+    stays in the registry for names and distances. Ask through
+    :meth:`is_blocked`.
     """
+
+    def is_blocked(self, channel: str) -> bool:
+        """True when the store must be skipped on ``channel`` (see CLOUD_CHANNELS)."""
+        if channel not in CLOUD_CHANNELS:
+            raise ValueError(f"unknown cloud channel '{channel}'")
+        return channel in self.blocked_channels
 
 
 def _parse_priority_categories(index: int, value: object) -> tuple[str, ...] | None:
@@ -72,12 +88,27 @@ def _parse_max_catalog_pages(index: int, value: object) -> int | None:
     return value
 
 
-def _parse_cloud_blocked(index: int, value: object) -> bool:
-    if value is None:
-        return False
-    if not isinstance(value, bool):
-        raise ValueError(f"source #{index}: 'cloud_blocked' must be a boolean when present")
-    return value
+def _parse_cloud_blocked(index: int, value: object) -> frozenset[str]:
+    """``true`` = blocked on every channel, ``false``/absent = on none, or a
+    list of channel names (canonical spelling for "both" is ``true``)."""
+    if value is None or value is False:
+        return frozenset()
+    if value is True:
+        return CLOUD_CHANNELS
+    if not isinstance(value, list) or not all(isinstance(channel, str) for channel in value):
+        raise ValueError(
+            f"source #{index}: 'cloud_blocked' must be a boolean or a list of "
+            f"channel names ({', '.join(sorted(CLOUD_CHANNELS))}) when present"
+        )
+    unknown = [channel for channel in value if channel not in CLOUD_CHANNELS]
+    if unknown:
+        raise ValueError(
+            f"source #{index}: 'cloud_blocked' names unknown channel(s) "
+            f"{', '.join(unknown)} (known: {', '.join(sorted(CLOUD_CHANNELS))})"
+        )
+    if len(set(value)) != len(value):
+        raise ValueError(f"source #{index}: 'cloud_blocked' lists a channel twice")
+    return frozenset(value)
 
 
 def _parse_coordinate(index: int, name: str, value: object, limit: float) -> float | None:
@@ -111,7 +142,7 @@ def _parse_entry(index: int, entry: object) -> Source:
         max_catalog_pages=_parse_max_catalog_pages(index, entry.get("max_catalog_pages")),
         lat=lat,
         lon=lon,
-        cloud_blocked=_parse_cloud_blocked(index, entry.get("cloud_blocked")),
+        blocked_channels=_parse_cloud_blocked(index, entry.get("cloud_blocked")),
     )
 
 
