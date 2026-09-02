@@ -82,6 +82,37 @@ def test_fair_price_line_single_store_is_honest():
     assert "una sola tienda" in detail._fair_price_line(analysis)
 
 
+def test_adopt_reading_takes_new_reading_once():
+    state = {}
+    reading = {"latitude": -32.95, "longitude": -60.65}
+    # The user clicks the component button: the reading is adopted.
+    assert detail._adopt_reading(state, reading) is True
+    assert state["reference_point"] == (-32.95, -60.65)
+    # Next rerun: the component replays the same reading — no change, no rerun.
+    assert detail._adopt_reading(state, reading) is False
+
+
+def test_adopt_reading_ignores_empty_or_null_reading():
+    state = {}
+    assert detail._adopt_reading(state, None) is False
+    assert detail._adopt_reading(state, {"latitude": None, "longitude": None}) is False
+    assert state == {}
+
+
+def test_back_to_shop_survives_stale_component_reading():
+    """Tap "Volver al local", then rerun: streamlit_geolocation replays its
+    last reading on every rerun, and that stale reading must NOT be
+    re-adopted — otherwise the button visibly does nothing (PR #21 blocker).
+    """
+    state = {}
+    reading = {"latitude": -32.95, "longitude": -60.65}
+    detail._adopt_reading(state, reading)  # user opted in earlier this visit
+    state.pop("reference_point")  # user taps "Volver al local"
+    # Rerun: the component still returns the old reading.
+    assert detail._adopt_reading(state, reading) is False
+    assert "reference_point" not in state
+
+
 def test_distance_for_known_store():
     coords = {"celuphone": (-32.9386, -60.6801)}
     text = detail._distance_for("celuphone", (-32.9386, -60.6801), coords)

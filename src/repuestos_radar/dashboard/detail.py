@@ -64,6 +64,25 @@ def _sorted_offers(
     return tuple(sorted(offers, key=sort_value))
 
 
+def _adopt_reading(state, location: dict | None) -> bool:
+    """Adopt a NEW geolocation component reading as the reference point.
+
+    The component replays its last reading on every rerun, not just on a
+    click, so only a reading that differs from the last one ADOPTED is taken.
+    Comparing against ``reference_point`` itself would re-adopt the stale
+    reading right after "Volver al local" clears it, making that button
+    visibly do nothing. Returns True when the state changed (caller reruns).
+    """
+    if not location or location.get("latitude") is None:
+        return False
+    point = (location["latitude"], location["longitude"])
+    if point == state.get("geo_last_reading"):
+        return False
+    state["geo_last_reading"] = point
+    state["reference_point"] = point
+    return True
+
+
 def _reference_point() -> tuple[float, float] | None:
     """The shop by default; the visitor's position while they opt in this visit."""
     shop = distance.shop_location()
@@ -86,11 +105,8 @@ def _reference_point() -> tuple[float, float] | None:
             location = streamlit_geolocation()  # renders the permission button
         except Exception:
             location = None
-        if location and location.get("latitude") is not None:
-            point = (location["latitude"], location["longitude"])
-            if point != current:
-                st.session_state["reference_point"] = point
-                st.rerun()
+        if _adopt_reading(st.session_state, location):
+            st.rerun()
     return current or shop
 
 
