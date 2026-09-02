@@ -5,6 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from streamlit.proto.TextInput_pb2 import TextInput as TextInputProto
 from streamlit.testing.v1 import AppTest
 
 from repuestos_radar.dashboard import data
@@ -77,6 +78,15 @@ def test_login_gate_blocks_without_password(seeded_db):
     at = _app(seeded_db).run()
     assert at.text_input  # the password field is shown
     assert "authed" not in at.session_state or not at.session_state["authed"]
+
+
+def test_password_field_is_marked_as_an_existing_password(seeded_db):
+    """autocomplete="current-password": browsers offer to save/autofill the
+    password instead of Chrome's "create a strong password" sign-up prompt."""
+    at = _app(seeded_db).run()
+    field = at.text_input[0]
+    assert field.autocomplete == "current-password"
+    assert field.proto.type == TextInputProto.PASSWORD  # still masked, of course
 
 
 def test_wrong_password_rejected(seeded_db):
