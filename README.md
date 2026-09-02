@@ -26,10 +26,11 @@ leave at current prices.
    source registry.
 2. **Postgres price history.** Every listing is normalized into a common schema and appended to a
    hosted Postgres database (Neon free tier), building a price history over time.
-3. **Streamlit dashboard.** A Spanish-first dashboard (with an EN/ES toggle) shows current prices,
-   history, and a margin calculator. It is public read-only, except for a password-protected admin
-   page where the client manages the watchlist — the list of tracked search items lives in a
-   database table, so the client adds or removes items without touching code.
+3. **Streamlit dashboard.** A Spanish-first dashboard, behind one shared password for the whole
+   app, shows current prices, history, and margins. Its admin page manages the watchlist and the
+   repair price list — tracked search items live in a database table, so the client adds or
+   removes items without touching code. An ES/EN toggle and a password-free public demo are the
+   committed post-M4 follow-up.
 
 ## Data sources and trust policy
 

@@ -28,11 +28,12 @@ debajo del mercado, y qué margen deja una reparación a los precios de hoy.
 2. **Historial de precios en Postgres.** Cada publicación se normaliza a un esquema común y se
    agrega a una base Postgres hosteada (Neon, plan gratuito), armando un historial de precios en
    el tiempo.
-3. **Dashboard en Streamlit.** Un dashboard primero en español (con selector ES/EN) muestra precios
-   actuales, historial y una calculadora de margen. Es público de solo lectura, salvo una página
-   de administración protegida con contraseña donde el cliente gestiona la lista de seguimiento —
-   las búsquedas seguidas viven en una tabla de la base, así que el cliente agrega o saca ítems
-   sin tocar código.
+3. **Dashboard en Streamlit.** Un dashboard primero en español, detrás de una única contraseña
+   compartida para toda la app, muestra precios actuales, historial y márgenes. Su página de
+   administración gestiona la lista de seguimiento y la lista de precios de reparaciones — las
+   búsquedas seguidas viven en una tabla de la base, así que el cliente agrega o saca ítems sin
+   tocar código. El selector ES/EN y una demo pública sin contraseña son el siguiente paso
+   comprometido después de M4.
 
 ## Fuentes de datos y política de confianza
 
@@ -278,7 +279,7 @@ detalle, "Usar mi ubicación" le pide al navegador la posición del celular a tr
 `streamlit-js-eval`. La lectura se conserva solo durante la sesión y nunca se guarda; "Volver al
 local" la descarta.
 
-Para correrla en local:
+Para correrla localmente:
 
 ```bash
 uv sync --extra dashboard
@@ -296,11 +297,12 @@ Cloud) — nunca se commitea al repo:
 | `SHOP_LAT`     | Latitud del local — el punto de referencia por defecto para las distancias.         |
 | `SHOP_LON`     | Longitud del local — se mantiene fuera del repo público junto con `SHOP_LAT`.       |
 
-La búsqueda rápida ("Buscar precios ahora") consulta el buscador propio de cada tienda que tiene
-uno para un repuesto, en paralelo pero con respeto (cada tienda sigue viendo un único visitante
-secuencial), y tiene un tope fijo de 10 corridas por día calendario. Las tiendas en Tiendanube son
-solo diarias: el robots.txt de la plataforma prohíbe `/search/`, y según la política de cortesía
-las salteamos en vez de buscarles la vuelta — el recorrido diario las sigue cubriendo.
+La búsqueda rápida ("Buscar precios ahora") busca un repuesto en el buscador propio de cada
+tienda que tenga uno, en paralelo pero con respeto (cada tienda sigue viendo un único visitante
+secuencial), y tiene un tope fijo de 10 corridas por día calendario. Las tiendas en Tiendanube
+quedan solo para la corrida diaria: el robots.txt de la plataforma prohíbe `/search/`, y según
+la política de cortesía las salteamos en vez de buscarles la vuelta — el recorrido diario las
+sigue cubriendo.
 
 ### Capturas de pantalla
 
