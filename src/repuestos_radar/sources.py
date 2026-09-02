@@ -36,6 +36,9 @@ class Source:
 
     Only meaningful for tiendanube-platform sources; other adapters ignore it.
     """
+    lat: float | None = None
+    """Store latitude, hand-entered (see sources.yaml). Both lat and lon or neither."""
+    lon: float | None = None
 
 
 def _parse_priority_categories(index: int, value: object) -> tuple[str, ...] | None:
@@ -62,6 +65,16 @@ def _parse_max_catalog_pages(index: int, value: object) -> int | None:
     return value
 
 
+def _parse_coordinate(index: int, name: str, value: object, limit: float) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"source #{index}: '{name}' must be a number when present")
+    if not -limit <= value <= limit:
+        raise ValueError(f"source #{index}: '{name}' must be within ±{limit}")
+    return float(value)
+
+
 def _parse_entry(index: int, entry: object) -> Source:
     if not isinstance(entry, dict):
         raise ValueError(f"source #{index}: expected a mapping, got {type(entry).__name__}")
@@ -72,11 +85,17 @@ def _parse_entry(index: int, entry: object) -> Source:
     scraping_notes = entry.get("scraping_notes")
     if scraping_notes is not None and not isinstance(scraping_notes, str):
         raise ValueError(f"source #{index}: 'scraping_notes' must be a string when present")
+    lat = _parse_coordinate(index, "lat", entry.get("lat"), 90.0)
+    lon = _parse_coordinate(index, "lon", entry.get("lon"), 180.0)
+    if (lat is None) != (lon is None):
+        raise ValueError(f"source #{index}: 'lat' and 'lon' must be given together")
     return Source(
         **{field_name: entry[field_name].strip() for field_name in _REQUIRED_FIELDS},
         scraping_notes=(scraping_notes or "").strip() or None,
         priority_categories=_parse_priority_categories(index, entry.get("priority_categories")),
         max_catalog_pages=_parse_max_catalog_pages(index, entry.get("max_catalog_pages")),
+        lat=lat,
+        lon=lon,
     )
 
 

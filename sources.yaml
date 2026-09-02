@@ -19,6 +19,11 @@ sources:
     trust_notes: >-
       Established phone-parts storefront with a verifiable central Rosario
       address.
+    # Hand-entered store position for the dashboard's straight-line distance
+    # column (M4). Derived from the street address; verify against the address
+    # on a map before trusting it to 3 decimals.
+    lat: -32.9527
+    lon: -60.6293
 
   - slug: tienda-movil
     name: Tienda Móvil
@@ -29,6 +34,8 @@ sources:
     trust_notes: >-
       Established phone-parts storefront with a verifiable central Rosario
       address.
+    lat: -32.9437
+    lon: -60.6444
 
   - slug: evophone
     name: Evophone
@@ -42,16 +49,20 @@ sources:
       Cloudflare filters default bot user-agents; the project's honest,
       descriptive user-agent is accepted. If that ever stops being the case,
       skip the source rather than work around it.
+    lat: -32.9516
+    lon: -60.6789
 
   - slug: celuphone
     name: Celuphone
     url: https://celuphone.com.ar
     platform: woocommerce
-    address: Santa Fe 4245
+    address: Mendoza 1468
     city: Rosario
     trust_notes: >-
       Registered company (CELUPHONE SAS) with a verifiable Rosario address;
       ~4.4 stars on Google across 360+ reviews.
+    lat: -32.9503
+    lon: -60.6444
 
   - slug: litoral-accesorios
     name: Litoral Accesorios Celulares
@@ -66,6 +77,8 @@ sources:
       WordPress installed under the /tienda/ subdirectory; robots.txt is
       checked at the host root and 404s (allow-all). Catalog is accessory-
       and battery-heavy — a "modulo" search returns few or no results.
+    lat: -32.9500
+    lon: -60.6355
 
   - slug: mdrepuestos
     name: MD Repuestos Originales
@@ -91,6 +104,8 @@ sources:
     # covers every top-level category with headroom; the deeper per-model
     # categories only duplicate their parents.
     max_catalog_pages: 160
+    lat: -34.5290
+    lon: -58.5312
 
   - slug: gofix
     name: GoFix
@@ -110,6 +125,8 @@ sources:
       source rather than work around it. No public JSON API and /search/ is
       robots-disallowed platform-wide, so the adapter crawls category pages
       (JSON-LD) instead of searching.
+    lat: -34.5051
+    lon: -58.5659
 
   - slug: onestore
     name: One Store
@@ -136,3 +153,5 @@ sources:
     priority_categories:
       - celulares1/celulares-reacondicionados
       - celulares1/celulares2
+    lat: -32.8896
+    lon: -68.8442

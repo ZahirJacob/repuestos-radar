@@ -26,6 +26,18 @@ sources:
 """
 
 
+BASE_ENTRY = """
+sources:
+  - slug: novocell
+    name: Novocell
+    url: https://novocell.com.ar
+    platform: wix
+    address: Av. Pellegrini 356
+    city: Rosario
+    trust_notes: Established storefront.
+"""
+
+
 def write_yaml(tmp_path: Path, content: str) -> Path:
     path = tmp_path / "sources.yaml"
     path.write_text(content, encoding="utf-8")
@@ -183,3 +195,43 @@ def test_default_path_loads_repo_registry() -> None:
         if source.platform == "tiendanube":
             assert source.scraping_notes is not None
             assert "Cloudflare" in source.scraping_notes
+
+
+def test_source_coordinates_parsed(tmp_path):
+    registry = tmp_path / "sources.yaml"
+    registry.write_text(
+        BASE_ENTRY + "    lat: -32.9526\n    lon: -60.6310\n", encoding="utf-8"
+    )  # BASE_ENTRY: reuse/define a minimal valid single-source yaml string local to the test file
+    (source,) = load_sources(registry)
+    assert source.lat == pytest.approx(-32.9526)
+    assert source.lon == pytest.approx(-60.6310)
+
+
+def test_source_coordinates_default_none(tmp_path):
+    registry = tmp_path / "sources.yaml"
+    registry.write_text(BASE_ENTRY, encoding="utf-8")
+    (source,) = load_sources(registry)
+    assert source.lat is None and source.lon is None
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        "    lat: -32.9526\n",  # lat without lon
+        "    lon: -60.6310\n",  # lon without lat
+        "    lat: -95.0\n    lon: -60.0\n",  # lat out of range
+        "    lat: -32.0\n    lon: 190.0\n",  # lon out of range
+        "    lat: south\n    lon: -60.0\n",  # not a number
+    ],
+)
+def test_bad_coordinates_rejected(tmp_path, extra):
+    registry = tmp_path / "sources.yaml"
+    registry.write_text(BASE_ENTRY + extra, encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_sources(registry)
+
+
+def test_real_registry_rosario_sources_have_coordinates():
+    by_slug = {source.slug: source for source in load_sources()}
+    for slug in ("novocell", "tienda-movil", "evophone", "celuphone", "litoral-accesorios"):
+        assert by_slug[slug].lat is not None, slug
