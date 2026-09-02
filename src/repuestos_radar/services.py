@@ -1,9 +1,9 @@
-"""Minimal service price-list CLI (dev-facing, until M4's admin page).
+"""Minimal service price-list CLI (dev-facing twin of the dashboard's admin page).
 
 What Activcelu charges the customer for each repair lives in the
 ``service_prices`` table; margins compare those prices against the day's
-part prices. Until the dashboard's admin page exists, this CLI is how the
-price list is managed:
+part prices. The client manages the price list from the dashboard's Ajustes
+page; this CLI is the scriptable route over the same helpers:
 
     python -m repuestos_radar.services add "Cambio módulo A32" --item 3 --price 75000
     python -m repuestos_radar.services list
@@ -195,7 +195,7 @@ def _cmd_remove(session: Session, args: argparse.Namespace) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m repuestos_radar.services",
-        description="Manage the repair price list (until the M4 admin page exists).",
+        description="Manage the repair price list (same data as the dashboard's Ajustes page).",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
