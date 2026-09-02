@@ -1,12 +1,15 @@
 """Tests for engine/session wiring. Offline: SQLite in-memory only, no .env values."""
 
+from contextlib import contextmanager
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import inspect, select, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
+from repuestos_radar import db as db_module
 from repuestos_radar.db import get_engine, get_session_factory, init_db
 from repuestos_radar.models import Listing, TrackedItem
 
@@ -163,4 +166,77 @@ def test_init_db_is_a_no_op_when_kind_already_exists(tmp_path) -> None:
 
     after = [c["name"] for c in inspect(engine).get_columns("tracked_items")]
     assert after == before
+    engine.dispose()
+
+
+class _RecordingEngine:
+    """Enough of an Engine for the migration: a dialect name and begin()."""
+
+    def __init__(self, dialect: str) -> None:
+        self.dialect = SimpleNamespace(name=dialect)
+        self.statements: list[str] = []
+
+    @contextmanager
+    def begin(self):
+        yield SimpleNamespace(execute=lambda statement: self.statements.append(str(statement)))
+
+
+def test_migration_adds_the_check_constraint_on_postgres_only(monkeypatch) -> None:
+    monkeypatch.setattr(db_module, "_has_kind_column", lambda engine: False)
+
+    postgres = _RecordingEngine("postgresql")
+    db_module._add_tracked_item_kind(postgres)
+    assert postgres.statements == [db_module._ADD_KIND_COLUMN, db_module._ADD_KIND_CHECK]
+    assert "ADD CONSTRAINT ck_tracked_items_kind CHECK (kind IN ('part', 'phone'))" in (
+        db_module._ADD_KIND_CHECK
+    )
+
+    sqlite = _RecordingEngine("sqlite")
+    db_module._add_tracked_item_kind(sqlite)
+    assert sqlite.statements == [db_module._ADD_KIND_COLUMN]
+
+
+def _pre_kind_engine(tmp_path):
+    engine = get_engine(f"sqlite+pysqlite:///{tmp_path / 'race.db'}")
+    with engine.begin() as connection:
+        connection.execute(text(_PRE_KIND_TRACKED_ITEMS))
+    return engine
+
+
+def test_migration_survives_losing_the_race_to_another_process(tmp_path, monkeypatch) -> None:
+    """Dashboard and cron both call init_db on a fresh deploy. The loser's
+    ALTER fails with "duplicate column"; if the column is there now, fine."""
+    engine = _pre_kind_engine(tmp_path)
+    real_check = db_module._has_kind_column
+    calls = []
+
+    def other_process_wins_between_inspect_and_alter(target):
+        calls.append(target)
+        if len(calls) == 1:
+            # The column is missing at inspection time, but by the time our
+            # ALTER runs the other process has added it.
+            with engine.begin() as connection:
+                connection.execute(text(db_module._ADD_KIND_COLUMN))
+            return False
+        return real_check(target)
+
+    monkeypatch.setattr(db_module, "_has_kind_column", other_process_wins_between_inspect_and_alter)
+
+    init_db(engine)  # must not raise
+
+    assert len(calls) == 2  # inspected, ALTER failed, re-inspected
+    assert _kind_column(engine) is not None
+    engine.dispose()
+
+
+def test_migration_reraises_when_the_alter_fails_for_another_reason(tmp_path, monkeypatch) -> None:
+    engine = _pre_kind_engine(tmp_path)
+    with engine.begin() as connection:
+        connection.execute(text(db_module._ADD_KIND_COLUMN))
+    # The inspection says "missing" every time, so the duplicate-column error
+    # cannot be explained by a race and must surface.
+    monkeypatch.setattr(db_module, "_has_kind_column", lambda engine: False)
+
+    with pytest.raises(OperationalError, match="duplicate column"):
+        init_db(engine)
     engine.dispose()

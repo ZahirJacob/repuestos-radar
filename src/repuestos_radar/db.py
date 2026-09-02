@@ -9,9 +9,10 @@ import os
 
 from dotenv import load_dotenv
 from sqlalchemy import Engine, create_engine, event, inspect, text
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session, sessionmaker
 
-from repuestos_radar.models import KIND_PART, Base
+from repuestos_radar.models import KIND_PART, KIND_PHONE, Base
 
 
 def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
@@ -65,17 +66,35 @@ def init_db(engine: Engine) -> None:
 
 
 # DDL both SQLite and Postgres accept: ADD COLUMN with a constant default also
-# fills existing rows. Same type as the model column; the CHECK constraint
-# lives on the model only (fresh databases get it from create_all).
+# fills existing rows. Same type as the model column.
 _ADD_KIND_COLUMN = (
     f"ALTER TABLE tracked_items ADD COLUMN kind VARCHAR(10) NOT NULL DEFAULT '{KIND_PART}'"
 )
+# Postgres only: SQLite cannot ADD CONSTRAINT (a fresh SQLite database gets
+# the check from create_all). Same name as the model's CheckConstraint.
+_ADD_KIND_CHECK = (
+    "ALTER TABLE tracked_items ADD CONSTRAINT ck_tracked_items_kind "
+    f"CHECK (kind IN ('{KIND_PART}', '{KIND_PHONE}'))"
+)
+
+
+def _has_kind_column(engine: Engine) -> bool:
+    return any(column["name"] == "kind" for column in inspect(engine).get_columns("tracked_items"))
 
 
 def _add_tracked_item_kind(engine: Engine) -> None:
     """Add ``tracked_items.kind`` when the table predates the column; no-op otherwise."""
-    columns = {column["name"] for column in inspect(engine).get_columns("tracked_items")}
-    if "kind" in columns:
+    if _has_kind_column(engine):
         return
-    with engine.begin() as connection:
-        connection.execute(text(_ADD_KIND_COLUMN))
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(_ADD_KIND_COLUMN))
+            if engine.dialect.name == "postgresql":
+                connection.execute(text(_ADD_KIND_CHECK))
+    except (OperationalError, ProgrammingError):
+        # The dashboard and the cron ingest can both start right after a
+        # deploy and race here; the loser's ALTER fails with "duplicate
+        # column". If the column is there now, the other side won.
+        if _has_kind_column(engine):
+            return
+        raise
