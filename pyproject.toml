@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "repuestos-radar"
-dynamic = ["version"]
+version = "0.1.0"
 description = "Market intelligence for phone repair shops: multi-source price tracking for phone spare parts and used phones."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -17,24 +17,18 @@ dependencies = [
     "psycopg[binary]",
     "pyyaml",
     "python-dotenv",
+    # Dashboard deps live here on purpose: Streamlit Community Cloud installs
+    # with `uv sync` from uv.lock, which skips optional extras.
+    "streamlit>=1.45",
+    "streamlit-cookies-controller>=0.0.4",
+    "streamlit-geolocation>=0.0.10",
 ]
 
 [project.optional-dependencies]
-dashboard = [
-    "streamlit>=1.45",
-    "streamlit-cookies-controller>=0.0.4",
-    "streamlit-geolocation>=0.0.10",
-]
 dev = [
     "pytest>=9,<10",
     "ruff>=0.16,<0.17",
-    "streamlit>=1.45",
-    "streamlit-cookies-controller>=0.0.4",
-    "streamlit-geolocation>=0.0.10",
 ]
-
-[tool.hatch.version]
-path = "src/repuestos_radar/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/repuestos_radar"]

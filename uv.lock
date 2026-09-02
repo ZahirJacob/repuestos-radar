@@ -919,6 +919,7 @@ wheels = [
 
 [[package]]
 name = "repuestos-radar"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -927,20 +928,15 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "sqlalchemy" },
+    { name = "streamlit" },
+    { name = "streamlit-cookies-controller" },
+    { name = "streamlit-geolocation" },
 ]
 
 [package.optional-dependencies]
-dashboard = [
-    { name = "streamlit" },
-    { name = "streamlit-cookies-controller" },
-    { name = "streamlit-geolocation" },
-]
 dev = [
     { name = "pytest" },
     { name = "ruff" },
-    { name = "streamlit" },
-    { name = "streamlit-cookies-controller" },
-    { name = "streamlit-geolocation" },
 ]
 
 [package.metadata]
@@ -953,14 +949,11 @@ requires-dist = [
     { name = "pyyaml" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.16,<0.17" },
     { name = "sqlalchemy" },
-    { name = "streamlit", marker = "extra == 'dashboard'", specifier = ">=1.45" },
-    { name = "streamlit", marker = "extra == 'dev'", specifier = ">=1.45" },
-    { name = "streamlit-cookies-controller", marker = "extra == 'dashboard'", specifier = ">=0.0.4" },
-    { name = "streamlit-cookies-controller", marker = "extra == 'dev'", specifier = ">=0.0.4" },
-    { name = "streamlit-geolocation", marker = "extra == 'dashboard'", specifier = ">=0.0.10" },
-    { name = "streamlit-geolocation", marker = "extra == 'dev'", specifier = ">=0.0.10" },
+    { name = "streamlit", specifier = ">=1.45" },
+    { name = "streamlit-cookies-controller", specifier = ">=0.0.4" },
+    { name = "streamlit-geolocation", specifier = ">=0.0.10" },
 ]
-provides-extras = ["dashboard", "dev"]
+provides-extras = ["dev"]
 
 [[package]]
 name = "requests"
