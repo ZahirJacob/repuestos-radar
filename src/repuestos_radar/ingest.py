@@ -158,7 +158,7 @@ def run_ingestion(
         for item in items:
             try:
                 listings = adapter.fetch(item.query)
-                classified = apply_relevance(item.query, listings)
+                classified = apply_relevance(item.query, listings, kind=item.kind)
                 inserted = save_classified_listings(session, item.id, classified)
                 session.commit()
             except AdapterError as exc:

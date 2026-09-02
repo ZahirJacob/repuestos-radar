@@ -219,3 +219,26 @@ def test_format_report_lines_are_grepable():
 def test_format_report_capped():
     report = QuickSearchReport(item_id=3, query="modulo a32", capped=True)
     assert "daily cap reached" in format_report(report)
+
+
+def test_quick_search_classifies_with_the_items_kind(session):
+    phone = TrackedItem(query="samsung s24 ultra", kind="phone")
+    session.add(phone)
+    session.commit()
+    woo = _source("shopa", "woocommerce")
+    adapters = [
+        FakeAdapter(
+            woo,
+            [
+                _listing("shopa", "1", "Samsung Galaxy S24 Ultra 256GB", "1500000"),
+                _listing("shopa", "2", "Bateria Samsung S24 Ultra", "45000"),
+            ],
+        )
+    ]
+
+    report = quick_search(session, phone, [woo], adapters=adapters)
+
+    (source_report,) = report.sources
+    assert (source_report.matches, source_report.low_confidence) == (1, 0)
+    stored = {row.external_id: row.relevance for row in session.scalars(select(Listing))}
+    assert stored == {"1": "match", "2": "reject"}

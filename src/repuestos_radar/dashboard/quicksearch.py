@@ -101,7 +101,9 @@ def runs_today(session: Session) -> int:
     )
 
 
-def _search_one(adapter: Adapter, query: str) -> tuple[list[ClassifiedListing], int, str | None]:
+def _search_one(
+    adapter: Adapter, query: str, kind: str
+) -> tuple[list[ClassifiedListing], int, str | None]:
     """Fetch + classify in a worker thread; DB writes stay on the caller's thread."""
     try:
         listings = adapter.fetch(query)
@@ -109,7 +111,7 @@ def _search_one(adapter: Adapter, query: str) -> tuple[list[ClassifiedListing], 
         return [], adapter.skipped, " ".join(str(exc).split())
     except Exception as exc:  # unexpected: isolate like the ingest runner does
         return [], adapter.skipped, f"unexpected {type(exc).__name__}: {exc}"
-    return apply_relevance(query, listings), adapter.skipped, None
+    return apply_relevance(query, listings, kind=kind), adapter.skipped, None
 
 
 def quick_search(
@@ -168,7 +170,8 @@ def quick_search(
                 stack.enter_context(adapter)
             with ThreadPoolExecutor(max_workers=max(1, len(adapters))) as pool:
                 futures = {
-                    pool.submit(_search_one, adapter, item.query): adapter for adapter in adapters
+                    pool.submit(_search_one, adapter, item.query, item.kind): adapter
+                    for adapter in adapters
                 }
                 for future in as_completed(futures):
                     adapter = futures[future]

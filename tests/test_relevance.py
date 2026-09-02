@@ -7,6 +7,7 @@ import pytest
 
 from repuestos_radar.relevance import (
     HARD_REJECT,
+    PART_WORDS,
     SOFT,
     ClassifiedListing,
     Relevance,
@@ -230,3 +231,103 @@ def test_apply_relevance_labels_whole_batch_without_dropping() -> None:
     assert labels[1] is Relevance.REJECT
     assert labels[2] is Relevance.REJECT
     assert classified[0].listing.external_id == "1"
+
+
+# --- tracked item kind: phone vs part ---------------------------------------
+
+# Real titles fetched for the tracked phone "samsung s24 ultra" on 2026-09-02:
+# every one is a spare part FOR the phone, and every one carries the query
+# words, so only the item's kind can separate them from the handset itself.
+S24_ULTRA_PART_TITLES = [
+    "LENTE CUBRE CAMARA SAMSUNG S24 ULTRA",
+    "FLEX ENCENDIDO SAMSUNG S24 ULTRA",
+    "Bateria Samsung S24 Ultra",
+    "TAPA TRASERA SAMSUNG S24 ULTRA NEGRA",
+    "PLACA CARGA SAMSUNG S24 ULTRA ORIGINAL",
+    "Modulo Samsung S24 Ultra Oled Con Marco Negro",
+    "PORTA SIM SAMSUNG S24 ULTRA",
+]
+S24_ULTRA_PHONE_TITLES = [
+    "Samsung Galaxy S24 Ultra 256GB",
+    "Samsung Galaxy S24 Ultra Reacondicionado",
+]
+
+
+def test_part_words_are_normalized_tokens() -> None:
+    for word in PART_WORDS:
+        assert normalize(word) == word
+
+
+@pytest.mark.parametrize("title", S24_ULTRA_PART_TITLES)
+def test_phone_item_rejects_part_listings(title: str) -> None:
+    result = classify("samsung s24 ultra", title, kind="phone")
+    assert result.relevance is Relevance.REJECT
+    assert result.reason.startswith("part word in a phone item: ")
+
+
+@pytest.mark.parametrize("title", S24_ULTRA_PHONE_TITLES)
+def test_phone_item_keeps_actual_phone_listings(title: str) -> None:
+    result = classify("samsung s24 ultra", title, kind="phone")
+    assert result.relevance is Relevance.MATCH
+    assert "part word" not in result.reason
+
+
+@pytest.mark.parametrize("title", S24_ULTRA_PART_TITLES + S24_ULTRA_PHONE_TITLES)
+def test_part_item_is_unchanged_by_the_kind_argument(title: str) -> None:
+    # kind="part" is the default and must be identical to the two-arg call.
+    assert classify("samsung s24 ultra", title, kind="part") == classify("samsung s24 ultra", title)
+
+
+def test_part_item_keeps_todays_labels_for_the_s24_part_titles() -> None:
+    labels = {
+        title: classify("samsung s24 ultra", title).relevance for title in S24_ULTRA_PART_TITLES
+    }
+    # Only the SIM tray trips the accessory blocklist (softened to
+    # LOW_CONFIDENCE because "samsung"/"ultra" count as query part words);
+    # the rest carry every query word and MATCH — exactly the today's-data
+    # problem the kind fixes.
+    assert labels["PORTA SIM SAMSUNG S24 ULTRA"] is Relevance.LOW_CONFIDENCE
+    for title, label in labels.items():
+        if title != "PORTA SIM SAMSUNG S24 ULTRA":
+            assert label is Relevance.MATCH, title
+
+
+def test_phone_item_still_applies_the_accessory_blocklist() -> None:
+    # No part word, but an accessory: the regular HARD_REJECT rule runs after.
+    # For a PART item the shared "samsung"/"ultra" tokens soften this to
+    # LOW_CONFIDENCE; a phone query has no part words, so nothing softens it.
+    title = "Funda Samsung S24 Ultra Silicona"
+    result = classify("samsung s24 ultra", title, kind="phone")
+    assert result.relevance is Relevance.REJECT
+    assert result.reason == "accessory term: funda"
+    assert classify("samsung s24 ultra", title).relevance is Relevance.LOW_CONFIDENCE
+
+
+def test_phone_item_still_requires_the_model_number() -> None:
+    result = classify("samsung s24 ultra", "Samsung Galaxy S23 Ultra 256GB", kind="phone")
+    assert result.relevance is Relevance.REJECT
+    assert result.reason == "required model number missing: s24"
+
+
+def test_phone_part_word_reason_names_the_first_word_alphabetically() -> None:
+    result = classify("samsung s24 ultra", "Modulo Samsung S24 Ultra Con Marco", kind="phone")
+    assert result.reason == "part word in a phone item: marco"
+
+
+def test_unknown_kind_raises_value_error() -> None:
+    with pytest.raises(ValueError, match="unknown tracked item kind: 'tablet'"):
+        classify("samsung s24 ultra", "Samsung Galaxy S24 Ultra", kind="tablet")
+    with pytest.raises(ValueError, match="unknown tracked item kind"):
+        apply_relevance("samsung s24 ultra", [make_listing("Samsung S24 Ultra")], kind="")
+
+
+def test_apply_relevance_passes_the_kind_through() -> None:
+    listings = [
+        make_listing("Samsung Galaxy S24 Ultra 256GB", "1"),
+        make_listing("Bateria Samsung S24 Ultra", "2"),
+    ]
+    as_phone = apply_relevance("samsung s24 ultra", listings, kind="phone")
+    as_part = apply_relevance("samsung s24 ultra", listings)
+
+    assert [c.result.relevance for c in as_phone] == [Relevance.MATCH, Relevance.REJECT]
+    assert [c.result.relevance for c in as_part] == [Relevance.MATCH, Relevance.MATCH]

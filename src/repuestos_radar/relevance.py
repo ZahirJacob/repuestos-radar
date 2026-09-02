@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from enum import Enum
 
+from repuestos_radar.models import KIND_PART, KIND_PHONE, TRACKED_KINDS
 from repuestos_radar.schema import NormalizedListing
 
 # --- tunable knobs ---------------------------------------------------------
@@ -74,6 +75,49 @@ SOFT: frozenset[str] = frozenset(
         "cables",
         "memoria",
         "chip",
+    }
+)
+
+# PART_WORDS: tokens that name a spare part. Only used for PHONE items: the
+# query for a whole handset ("samsung s24 ultra") matches every part sold for
+# that handset, and no query word can tell them apart — so a title with any
+# of these is a hard REJECT for a phone item. Normalized, accent-free (titles
+# go through ``normalize``). Editable as real data shows more.
+PART_WORDS: frozenset[str] = frozenset(
+    {
+        "modulo",
+        "pantalla",
+        "display",
+        "bateria",
+        "flex",
+        "tapa",
+        "pin",
+        "placa",
+        "lente",
+        "camara",
+        "buzzer",
+        "altavoz",
+        "boton",
+        "botones",
+        "bandeja",
+        "porta",
+        "conector",
+        "touch",
+        "tactil",
+        "marco",
+        "chasis",
+        "antena",
+        "microfono",
+        "vibrador",
+        "cubre",
+        "repuesto",
+        "repuestos",
+        "carga",
+        "glass",
+        "visor",
+        "backcover",
+        "teclado",
+        "flexor",
     }
 )
 
@@ -149,12 +193,31 @@ def _best_token_similarity(query_token: str, title_tokens: list[str]) -> float:
     return max((_fuzzy(query_token, t) for t in title_tokens), default=0.0)
 
 
-def classify(query: str, title: str) -> RelevanceResult:
-    """Classify one title against one query. Pure function, no side effects."""
+def classify(query: str, title: str, kind: str = KIND_PART) -> RelevanceResult:
+    """Classify one title against one query. Pure function, no side effects.
+
+    ``kind`` is the tracked item's kind (``TRACKED_KINDS``). For a phone
+    item, a title carrying any PART_WORDS token is rejected before the
+    regular rules run; for a part item the rules are exactly the pre-kind
+    ones. An unknown kind raises ValueError.
+    """
+    if kind not in TRACKED_KINDS:
+        raise ValueError(f"unknown tracked item kind: {kind!r} (expected {sorted(TRACKED_KINDS)})")
     norm_query = normalize(query)
     norm_title = normalize(title)
     if not norm_query or not norm_title:
         return RelevanceResult(Relevance.REJECT, 0.0, "empty query or title")
+
+    # 0) Phone items: the query is the handset's name, so its words appear in
+    # every spare part FOR that handset too. A part word in the title is the
+    # only signal that separates "Samsung Galaxy S24 Ultra 256GB" from
+    # "Bateria Samsung S24 Ultra" — hard reject on it.
+    if kind == KIND_PHONE:
+        part_hits = sorted(set(_tokens(norm_title)) & PART_WORDS)
+        if part_hits:
+            return RelevanceResult(
+                Relevance.REJECT, 0.0, f"part word in a phone item: {part_hits[0]}"
+            )
 
     query_tokens = _tokens(norm_query)
     title_tokens = _tokens(norm_title)
@@ -173,7 +236,10 @@ def classify(query: str, title: str) -> RelevanceResult:
     # tokens from both tiers.
     query_set = set(query_tokens)
     part_tokens = [t for t in query_tokens if not _is_model_number(t) and t not in _STOPWORDS]
-    strong_part_match = any(t in title_set for t in part_tokens)
+    # A phone query has no part words at all ("samsung", "ultra" name the
+    # handset), so for a phone item nothing softens an accessory hit: a funda
+    # for the phone is a REJECT, not LOW_CONFIDENCE.
+    strong_part_match = kind == KIND_PART and any(t in title_set for t in part_tokens)
 
     # HARD_REJECT: an unambiguous accessory the user did not ask for and that
     # shares no part word -> REJECT.
@@ -239,6 +305,11 @@ def classify(query: str, title: str) -> RelevanceResult:
     )
 
 
-def apply_relevance(query: str, listings: list[NormalizedListing]) -> list[ClassifiedListing]:
+def apply_relevance(
+    query: str, listings: list[NormalizedListing], kind: str = KIND_PART
+) -> list[ClassifiedListing]:
     """Classify a whole batch, keeping every listing with its label attached."""
-    return [ClassifiedListing(listing, classify(query, listing.title)) for listing in listings]
+    return [
+        ClassifiedListing(listing, classify(query, listing.title, kind=kind))
+        for listing in listings
+    ]
