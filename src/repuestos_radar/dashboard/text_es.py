@@ -92,18 +92,22 @@ LABEL_EMPTY = "El nombre no puede estar vacío."
 
 # Admin — tracked parts
 TRACKED_HEADER = "Repuestos vigilados"
-TRACKED_ADD_HEADER = "Agregar repuesto"
+TRACKED_ADD_HEADER = "Agregar repuesto o celular"
 TRACKED_QUERY_FIELD = "Palabras de búsqueda"
 TRACKED_QUERY_HINT = (
     "Las palabras con las que se busca en las tiendas, como en el buscador de "
-    'una página. Ejemplo: "modulo samsung a32".'
+    'una página. Ejemplos: "modulo samsung a32" o "moto g52".'
 )
+TRACKED_KIND_LABEL = "¿Qué es?"
+TRACKED_KIND_PART = "Repuesto"
+TRACKED_KIND_PHONE = "Celular"
+TRACKED_KIND_PHONE_TAG = "celular"
 TRACKED_ADD_BUTTON = "Agregar"
 TRACKED_ADDED = (
     "Se agregó. Para ver precios ya, usá «Buscar precios ahora»; "
     "si no, aparecen con la búsqueda diaria."
 )
-TRACKED_ALREADY = "Ese repuesto ya está en la lista."
+TRACKED_ALREADY = "Ya está en la lista."
 TRACKED_STOP = "Dejar de vigilar"
 TRACKED_STOP_WARNING = "El historial de precios se guarda, pero el radar deja de buscarlo cada día."
 TRACKED_CONFIRM_YES = "Sí, dejar de vigilar"

@@ -116,3 +116,19 @@ def test_service_line_escapes_a_dollar_typed_into_the_label():
     line = admin._service_line("Promo $ finde", Decimal("85000"))
     assert line == "**Promo \\$ finde** — \\$85.000"
     assert admin._service_line("Cambio módulo", Decimal("85000")) == "**Cambio módulo** — \\$85.000"
+
+
+def test_kind_radio_labels_map_to_kinds_with_part_first():
+    # The radio shows the labels in dict order and defaults to the first one.
+    assert list(admin._KIND_BY_LABEL) == [text_es.TRACKED_KIND_PART, text_es.TRACKED_KIND_PHONE]
+    assert admin._KIND_BY_LABEL[text_es.TRACKED_KIND_PART] == "part"
+    assert admin._KIND_BY_LABEL[text_es.TRACKED_KIND_PHONE] == "phone"
+
+
+def test_tracked_line_tags_phones_only():
+    part = TrackedItem(query="modulo a32")
+    phone = TrackedItem(query="samsung s24 ultra", kind="phone")
+    assert admin._tracked_line(part) == "**modulo a32**"
+    assert admin._tracked_line(phone) == (
+        f"**samsung s24 ultra** :gray-background[{text_es.TRACKED_KIND_PHONE_TAG}]"
+    )

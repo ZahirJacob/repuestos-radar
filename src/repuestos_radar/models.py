@@ -26,6 +26,14 @@ class Base(DeclarativeBase):
     pass
 
 
+# What a tracked item is. A "part" (the default) is a spare part such as a
+# module or battery; a "phone" is a whole handset. The relevance filter uses
+# the kind to reject part listings that merely carry a phone's model words.
+KIND_PART = "part"
+KIND_PHONE = "phone"
+TRACKED_KINDS: frozenset[str] = frozenset({KIND_PART, KIND_PHONE})
+
+
 class TrackedItem(Base):
     """A search the client wants tracked (e.g. "modulo samsung a32").
 
@@ -33,11 +41,20 @@ class TrackedItem(Base):
     """
 
     __tablename__ = "tracked_items"
-    __table_args__ = (CheckConstraint("length(trim(query)) > 0", name="ck_tracked_items_query"),)
+    __table_args__ = (
+        CheckConstraint("length(trim(query)) > 0", name="ck_tracked_items_query"),
+        CheckConstraint(f"kind IN ('{KIND_PART}', '{KIND_PHONE}')", name="ck_tracked_items_kind"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     query: Mapped[str] = mapped_column(Text, unique=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # "part" or "phone" (TRACKED_KINDS). server_default so rows written outside
+    # the ORM get it too; db.init_db back-fills the column on databases that
+    # predate it.
+    kind: Mapped[str] = mapped_column(
+        String(10), nullable=False, default=KIND_PART, server_default=KIND_PART
+    )
     # Stored as UTC. Note: postgres returns aware datetimes here, but sqlite
     # (dev/tests) returns naive ones — normalize before comparing across dialects.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from repuestos_radar import services, tracked
 from repuestos_radar.dashboard import data, quicksearch, radar, text_es
-from repuestos_radar.models import TrackedItem
+from repuestos_radar.models import KIND_PART, KIND_PHONE, TrackedItem
 from repuestos_radar.report import escape_md_dollars, md_ars
 from repuestos_radar.sources import load_sources
 
@@ -207,13 +207,28 @@ def _render_services(session: Session) -> None:
                 st.rerun()
 
 
+# Radio labels (Spanish, first one is the default) -> stored kind value.
+_KIND_BY_LABEL = {
+    text_es.TRACKED_KIND_PART: KIND_PART,
+    text_es.TRACKED_KIND_PHONE: KIND_PHONE,
+}
+
+
+def _tracked_line(item: TrackedItem) -> str:
+    """The query in bold, plus a small tag for phone items; parts get nothing extra."""
+    line = f"**{item.query}**"
+    if item.kind == KIND_PHONE:
+        line += f" :gray-background[{text_es.TRACKED_KIND_PHONE_TAG}]"
+    return line
+
+
 def _render_tracked(session: Session) -> None:
     st.subheader(text_es.TRACKED_HEADER)
     for item in tracked.list_items(session):
         if not item.active:
             continue
         with st.container(border=True):
-            st.markdown(f"**{item.query}**")
+            st.markdown(_tracked_line(item))
             confirm_key = f"confirm-tracked-{item.id}"
             if st.session_state.get(confirm_key):
                 st.warning(text_es.TRACKED_STOP_WARNING)
@@ -234,10 +249,11 @@ def _render_tracked(session: Session) -> None:
     with st.form("add-tracked", clear_on_submit=True):
         st.markdown(f"**{text_es.TRACKED_ADD_HEADER}**")
         query = st.text_input(text_es.TRACKED_QUERY_FIELD, help=text_es.TRACKED_QUERY_HINT)
+        kind_label = st.radio(text_es.TRACKED_KIND_LABEL, list(_KIND_BY_LABEL), horizontal=True)
         if st.form_submit_button(text_es.TRACKED_ADD_BUTTON):
             query = query.strip()
             if query:
-                item, status = tracked.add_item(session, query)
+                item, status = tracked.add_item(session, query, kind=_KIND_BY_LABEL[kind_label])
                 session.commit()
                 if status == tracked.ALREADY_ACTIVE:
                     _flash(st.session_state, text_es.TRACKED_ALREADY, kind="info")

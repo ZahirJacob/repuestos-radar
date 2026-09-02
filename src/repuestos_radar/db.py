@@ -8,10 +8,11 @@ URL instead.
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect, text
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session, sessionmaker
 
-from repuestos_radar.models import Base
+from repuestos_radar.models import KIND_PART, KIND_PHONE, Base
 
 
 def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
@@ -50,5 +51,50 @@ def get_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 
 def init_db(engine: Engine) -> None:
-    """Create all tables. Known simplification: no migrations yet (create_all only)."""
+    """Create all tables, then apply the one hand-rolled migration we carry.
+
+    Known simplification: no Alembic yet. ``create_all`` creates missing
+    TABLES but never adds columns to existing ones, so ``tracked_items.kind``
+    (added after the first deploy) is back-filled here by
+    ``_add_tracked_item_kind``. Idempotent, so every entry point (ingest, the
+    CLIs, the dashboard) keeps calling this at startup. This is the only
+    migration until Alembic lands; a second one should trigger that move
+    rather than grow this function.
+    """
     Base.metadata.create_all(engine)
+    _add_tracked_item_kind(engine)
+
+
+# DDL both SQLite and Postgres accept: ADD COLUMN with a constant default also
+# fills existing rows. Same type as the model column.
+_ADD_KIND_COLUMN = (
+    f"ALTER TABLE tracked_items ADD COLUMN kind VARCHAR(10) NOT NULL DEFAULT '{KIND_PART}'"
+)
+# Postgres only: SQLite cannot ADD CONSTRAINT (a fresh SQLite database gets
+# the check from create_all). Same name as the model's CheckConstraint.
+_ADD_KIND_CHECK = (
+    "ALTER TABLE tracked_items ADD CONSTRAINT ck_tracked_items_kind "
+    f"CHECK (kind IN ('{KIND_PART}', '{KIND_PHONE}'))"
+)
+
+
+def _has_kind_column(engine: Engine) -> bool:
+    return any(column["name"] == "kind" for column in inspect(engine).get_columns("tracked_items"))
+
+
+def _add_tracked_item_kind(engine: Engine) -> None:
+    """Add ``tracked_items.kind`` when the table predates the column; no-op otherwise."""
+    if _has_kind_column(engine):
+        return
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(_ADD_KIND_COLUMN))
+            if engine.dialect.name == "postgresql":
+                connection.execute(text(_ADD_KIND_CHECK))
+    except (OperationalError, ProgrammingError):
+        # The dashboard and the cron ingest can both start right after a
+        # deploy and race here; the loser's ALTER fails with "duplicate
+        # column". If the column is there now, the other side won.
+        if _has_kind_column(engine):
+            return
+        raise

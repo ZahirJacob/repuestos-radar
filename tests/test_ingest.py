@@ -729,3 +729,35 @@ def test_main_exit_1_when_database_unreachable(monkeypatch, capsys, tmp_path) ->
     assert main([]) == 1
     assert shop_a.closed  # the ExitStack still closes adapters on the way out
     assert "ingestion aborted (database error)" in capsys.readouterr().out
+
+
+def test_run_ingestion_classifies_with_the_items_kind(session: Session) -> None:
+    """A phone item rejects the spare parts that share its model words; the
+    same titles under a part item keep matching (the kind is what changed)."""
+    session.add(TrackedItem(query="samsung s24 ultra", kind="phone"))
+    session.add(TrackedItem(query="bateria samsung s24 ultra"))
+    session.commit()
+    shop = FakeAdapter(
+        "shop-a",
+        listings_by_query={
+            "samsung s24 ultra": [
+                make_listing("shop-a", "1", "Samsung Galaxy S24 Ultra 256GB"),
+                make_listing("shop-a", "2", "Bateria Samsung S24 Ultra"),
+            ],
+            "bateria samsung s24 ultra": [
+                make_listing("shop-a", "2", "Bateria Samsung S24 Ultra"),
+            ],
+        },
+    )
+
+    report = run_ingestion(session, [shop])
+
+    assert report.sources[0].failure is None
+    by_item = {}
+    for listing in session.scalars(select(Listing)):
+        by_item[(listing.tracked_item.query, listing.external_id)] = listing.relevance
+    assert by_item == {
+        ("samsung s24 ultra", "1"): "match",
+        ("samsung s24 ultra", "2"): "reject",
+        ("bateria samsung s24 ultra", "2"): "match",
+    }
