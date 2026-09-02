@@ -62,3 +62,37 @@ LOCATION_DENIED = (
 NO_SHOP_LOCATION = "Falta configurar la ubicación del local. Avisale al equipo."
 NO_STORE_LOCATION = "—"
 SHIPS_ONLY_NOTE = "solo envío"
+
+# Admin — repair prices
+SERVICES_HEADER = "Precios de reparaciones"
+SERVICE_EDIT = "Editar"
+SERVICE_SAVE = "Guardar"
+SERVICE_REMOVE = "Borrar"
+SERVICE_CONFIRM = "¿Seguro?"
+SERVICE_CONFIRM_YES = "Sí, borrar"
+SERVICE_CONFIRM_NO = "No"
+SERVICE_ADD_HEADER = "Agregar reparación"
+SERVICE_LABEL_FIELD = "Nombre de la reparación"
+SERVICE_ITEM_FIELD = "Repuesto que usa"
+SERVICE_PRICE_FIELD = "Precio al cliente (ARS)"
+SERVICE_ADD_BUTTON = "Agregar"
+SERVICE_SAVED = "Guardado."
+SERVICE_REMOVED = "Borrado."
+PRICE_NOT_A_NUMBER = "El precio tiene que ser un número."
+PRICE_NOT_POSITIVE = "El precio tiene que ser mayor que cero."
+LABEL_EMPTY = "El nombre no puede estar vacío."
+
+# Admin — tracked parts
+TRACKED_HEADER = "Repuestos vigilados"
+TRACKED_ADD_HEADER = "Agregar repuesto"
+TRACKED_QUERY_FIELD = "Palabras de búsqueda"
+TRACKED_QUERY_HINT = (
+    "Las palabras con las que se busca en las tiendas, como en el buscador de "
+    'una página. Ejemplo: "modulo samsung a32".'
+)
+TRACKED_ADD_BUTTON = "Agregar"
+TRACKED_ADDED = "Se agregó. Los precios aparecen después de una búsqueda."
+TRACKED_ALREADY = "Ese repuesto ya está en la lista."
+TRACKED_STOP = "Dejar de vigilar"
+TRACKED_STOP_WARNING = "El historial de precios se guarda, pero el radar deja de buscarlo cada día."
+TRACKED_STOPPED = "Listo — ya no se vigila."
