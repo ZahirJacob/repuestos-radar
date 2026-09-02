@@ -30,19 +30,53 @@ def test_admin_add_service_roundtrip(session):
     item = TrackedItem(query="modulo a32")
     session.add(item)
     session.commit()
-    error = admin._add_service(session, "Cambio módulo A32", item.id, "85000")
+    error, saved = admin._add_service(session, "Cambio módulo A32", item.id, "85000")
     assert error is None
+    assert saved == text_es.SERVICE_SAVED
     (service,) = list_services(session)
     assert service.price_ars == Decimal("85000.00")
+
+
+def test_admin_add_service_surfaces_overwrite_of_existing_label(session):
+    """Re-adding an existing label replaces its price and part link — the UI
+    must say so instead of a plain "Guardado."."""
+    first = TrackedItem(query="modulo a32")
+    second = TrackedItem(query="modulo a52")
+    session.add_all([first, second])
+    session.commit()
+    admin._add_service(session, "Cambio módulo", first.id, "85000")
+    error, saved = admin._add_service(session, "Cambio módulo", second.id, "90000")
+    assert error is None
+    assert saved == text_es.SERVICE_UPDATED_EXISTING
+    (service,) = list_services(session)
+    assert service.tracked_item_id == second.id
+    assert service.price_ars == Decimal("90000.00")
 
 
 def test_admin_add_service_rejects_bad_price(session):
     item = TrackedItem(query="modulo a32")
     session.add(item)
     session.commit()
-    assert admin._add_service(session, "Cambio", item.id, "nan") == text_es.PRICE_NOT_A_NUMBER
-    assert admin._add_service(session, "  ", item.id, "100") == text_es.LABEL_EMPTY
+    assert admin._add_service(session, "Cambio", item.id, "nan") == (
+        text_es.PRICE_NOT_A_NUMBER,
+        None,
+    )
+    assert admin._add_service(session, "  ", item.id, "100") == (text_es.LABEL_EMPTY, None)
     assert list_services(session) == []
+
+
+def test_admin_set_price_reports_missing_row(session):
+    """Editing a row another session just deleted must not report "Guardado."."""
+    assert admin._set_service_price(session, 42, "80000") == text_es.SERVICE_NOT_FOUND
+
+
+def test_flash_roundtrip():
+    state = {}
+    admin._flash(state, "Guardado.")
+    assert admin._pop_flash(state) == ("success", "Guardado.")
+    assert admin._pop_flash(state) is None
+    admin._flash(state, "Ya está.", kind="info")
+    assert admin._pop_flash(state) == ("info", "Ya está.")
 
 
 def test_skipped_note_lists_crawl_only_sources():
