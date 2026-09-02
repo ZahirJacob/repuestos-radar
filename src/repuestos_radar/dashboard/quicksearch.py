@@ -9,7 +9,10 @@ Courtesy: sources run in parallel THREADS, but each source keeps its own
 sequential PoliteHttpClient — per-host the 1-second delay is intact; no store
 sees more load than a single polite visitor. Tiendanube storefronts are
 skipped: the platform robots-disallows /search/, and their catalog crawl is
-exactly the slow path this feature avoids (skip, don't work around).
+exactly the slow path this feature avoids (skip, don't work around). Sources
+flagged cloud_blocked in the registry (they 403 from datacenter IPs such as
+Streamlit Cloud) are left out too, and reported separately so the UI can say
+why.
 
 A hard daily cap (DAILY_CAP runs per Argentine calendar day, recorded in the
 quick_search_runs table) keeps the feature honest even if the button gets
@@ -76,6 +79,12 @@ class QuickSearchReport:
     query: str
     capped: bool = False
     sources: list[QuickSourceReport] = field(default_factory=list)
+    blocked: list[QuickSourceReport] = field(default_factory=list)
+    """cloud_blocked sources left out of the search (registry order, never searched).
+
+    Kept apart from ``sources`` so the UI can explain them with their own note
+    instead of the crawl-only one.
+    """
 
 
 def argentina_today() -> date:
@@ -114,7 +123,10 @@ def quick_search(
     """Search every search-capable source for one item, in parallel; store results.
 
     Sources whose platform is not in SEARCHABLE_PLATFORMS appear in the report
-    with searched=False (the UI explains "solo búsqueda diaria"). When the
+    with searched=False (the UI explains them with QUICK_SEARCH_SKIPPED_NOTE,
+    "el radar solo busca ahí una vez por día"). Sources
+    flagged cloud_blocked are not searched either; they land in
+    ``report.blocked`` so the UI can show a separate note. When the
     daily cap is already spent the report comes back capped=True and nothing
     is fetched. ``adapters`` exists for tests (fakes); production callers let
     build_adapters construct the real ones from the searchable sources.
@@ -128,6 +140,12 @@ def quick_search(
             report.capped = True
             return report
 
+        report.blocked = [
+            QuickSourceReport(slug=s.slug, name=s.name, searched=False)
+            for s in sources
+            if s.cloud_blocked
+        ]
+        sources = [s for s in sources if not s.cloud_blocked]
         searchable = [s for s in sources if s.platform in SEARCHABLE_PLATFORMS]
         for source in sources:
             if source.platform not in SEARCHABLE_PLATFORMS:
@@ -207,6 +225,8 @@ def format_report(report: QuickSearchReport) -> str:
             error_text = s.failure.replace('"', "'")
             line += f' status=failed error="{error_text}"'
         lines.append(line)
+    for s in report.blocked:
+        lines.append(f"source={s.slug} searched=no reason=cloud_blocked")
     return "\n".join(lines)
 
 

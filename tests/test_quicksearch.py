@@ -23,7 +23,7 @@ from repuestos_radar.schema import Condition, NormalizedListing
 from repuestos_radar.sources import Source
 
 
-def _source(slug: str, platform: str) -> Source:
+def _source(slug: str, platform: str, *, cloud_blocked: bool = False) -> Source:
     return Source(
         slug=slug,
         name=slug.title(),
@@ -32,6 +32,7 @@ def _source(slug: str, platform: str) -> Source:
         address="x",
         city="Rosario",
         trust_notes="test",
+        cloud_blocked=cloud_blocked,
     )
 
 
@@ -131,6 +132,32 @@ def test_one_failing_source_does_not_abort_the_others(session, item):
     assert by_slug["bad"].failure == "bad: HTTP 500"
 
 
+def test_cloud_blocked_sources_are_left_out_and_reported_apart(session, item, monkeypatch):
+    """A cloud_blocked store gets no adapter (never contacted) and is listed
+    in report.blocked — not among the crawl-only sources, which carry a
+    different explanation in the UI."""
+    woo = _source("shopa", "woocommerce")
+    blocked = _source("shopb", "woocommerce", cloud_blocked=True)
+    nube = _source("shopc", "tiendanube")
+    built: list[list[str]] = []
+
+    def fake_build(sources):
+        built.append([s.slug for s in sources])
+        return [
+            FakeAdapter(s, [_listing(s.slug, "1", "Modulo Samsung A32", "20700")]) for s in sources
+        ]
+
+    monkeypatch.setattr(quicksearch_module, "build_adapters", fake_build)
+
+    report = quick_search(session, item, [woo, blocked, nube])
+
+    assert built == [["shopa"]]
+    assert [s.slug for s in report.sources] == ["shopa", "shopc"]
+    assert [(s.slug, s.name, s.searched) for s in report.blocked] == [("shopb", "Shopb", False)]
+    stored = session.scalars(select(Listing)).all()
+    assert {row.source_slug for row in stored} == {"shopa"}
+
+
 def test_progress_callback_fires_once_per_searched_source(session, item):
     woo = _source("shopa", "woocommerce")
     nube = _source("shopb", "tiendanube")
@@ -178,7 +205,9 @@ def test_format_report_lines_are_grepable():
         QuickSourceReport(slug="shopb", name="Shopb", searched=False),
         QuickSourceReport(slug="shopc", name="Shopc", searched=True, failure='HTTP "500"'),
     ]
+    report.blocked = [QuickSourceReport(slug="shopd", name="Shopd", searched=False)]
     text = format_report(report)
+    assert "source=shopd searched=no reason=cloud_blocked" in text
     assert 'quick search: item=3 query="modulo a32"' in text
     assert (
         "source=shopa searched=yes fetched=2 inserted=1 match=1 low_confidence=1 status=ok" in text

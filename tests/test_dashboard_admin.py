@@ -91,3 +91,22 @@ def test_skipped_note_lists_crawl_only_sources():
     )
     report.sources = [QuickSourceReport(slug="a", name="Tienda A", searched=True)]
     assert admin._skipped_note(report) is None
+
+
+def test_blocked_note_is_separate_from_the_crawl_only_note():
+    report = QuickSearchReport(item_id=1, query="x")
+    report.sources = [
+        QuickSourceReport(slug="a", name="Tienda A", searched=True),
+        QuickSourceReport(slug="b", name="Tienda B", searched=False),
+    ]
+    report.blocked = [
+        QuickSourceReport(slug="c", name="Tienda C", searched=False),
+        QuickSourceReport(slug="d", name="Tienda D", searched=False),
+    ]
+    assert admin._blocked_note(report) == text_es.QUICK_SEARCH_BLOCKED_NOTE.format(
+        names="Tienda C, Tienda D"
+    )
+    # The crawl-only note must not absorb the blocked stores.
+    assert admin._skipped_note(report) == text_es.QUICK_SEARCH_SKIPPED_NOTE.format(names="Tienda B")
+    report.blocked = []
+    assert admin._blocked_note(report) is None

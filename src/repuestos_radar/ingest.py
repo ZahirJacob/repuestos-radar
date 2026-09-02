@@ -13,13 +13,20 @@ session is committed after each (tracked item, source) save, so partial
 progress survives a crash; storage is idempotent per day, so re-runs are
 safe.
 
+Sources flagged ``cloud_blocked`` in the registry (they 403 from datacenter
+IPs) are left out of the default run — listed in the report as
+``status=skipped reason=cloud_blocked``, never attempted — per the project
+policy of skipping bot-blockers rather than working around them.
+
 Runnable as ``python -m repuestos_radar.ingest``. ``--source SLUG``
 (repeatable) restricts the run to the named source(s) — for small targeted
 live tests that leave the other shops alone; an unknown slug aborts at
-startup like any other config error. Exit code 0 when the run completed and
-at least one source succeeded (a run with no active tracked items is a
-successful no-op); 1 when every source failed or the run could not proceed
-at all (bad config, unreachable database).
+startup like any other config error. An explicitly named source runs even
+when it is cloud_blocked: that is how a blocked store gets re-tested. Exit
+code 0 when the run completed and at least one attempted source succeeded
+(a run with no active tracked items is a successful no-op); 1 when every
+attempted source failed or the run could not proceed at all (bad config,
+unreachable database).
 """
 
 import argparse
@@ -67,6 +74,9 @@ class RunReport:
 
     active_items: int
     sources: list[SourceReport] = field(default_factory=list)
+    """Sources actually attempted, in run order."""
+    skipped: list[str] = field(default_factory=list)
+    """Slugs left out of the run because they are cloud_blocked (never attempted)."""
 
     @property
     def ok(self) -> bool:
@@ -122,12 +132,16 @@ def _count_relevance(report: SourceReport, classified: list[ClassifiedListing]) 
             report.rejects += 1
 
 
-def run_ingestion(session: Session, adapters: Sequence[Adapter]) -> RunReport:
+def run_ingestion(
+    session: Session, adapters: Sequence[Adapter], skipped: Sequence[str] = ()
+) -> RunReport:
     """Fetch, classify, and persist every (source, active tracked item) pair.
 
     Commits after each save; on a source failure the session is rolled back,
     the source is abandoned for the rest of the run (courtesy: a failing host
     is not hammered once per item), and the remaining sources continue.
+    ``skipped`` carries the slugs the caller left out (cloud_blocked) so the
+    report can list them; they are never attempted here.
     """
     items = session.scalars(
         select(TrackedItem).where(TrackedItem.active).order_by(TrackedItem.id)
@@ -135,6 +149,7 @@ def run_ingestion(session: Session, adapters: Sequence[Adapter]) -> RunReport:
     report = RunReport(
         active_items=len(items),
         sources=[SourceReport(slug=adapter.source.slug) for adapter in adapters],
+        skipped=list(skipped),
     )
     if not items:
         return report
@@ -194,9 +209,12 @@ def format_report(report: RunReport) -> str:
             error_text = s.failure.replace('"', "'")
             line += f' status=failed error="{error_text}"'
         lines.append(line)
+    for slug in report.skipped:
+        lines.append(f"source={slug} status=skipped reason=cloud_blocked")
     ok_count = sum(1 for s in report.sources if s.failure is None)
     lines.append(
         f"summary: sources_ok={ok_count}/{len(report.sources)} "
+        f"skipped={len(report.skipped)} "
         f"fetched={sum(s.listings_fetched for s in report.sources)} "
         f"inserted={sum(s.inserted for s in report.sources)} "
         f"already_stored={sum(s.already_stored for s in report.sources)} "
@@ -205,14 +223,22 @@ def format_report(report: RunReport) -> str:
     return "\n".join(lines)
 
 
-def _select_sources(sources: Sequence[Source], requested: Sequence[str] | None) -> list[Source]:
-    """Registry sources restricted to the requested slugs (all when none given).
+def _select_sources(
+    sources: Sequence[Source], requested: Sequence[str] | None
+) -> tuple[list[Source], list[str]]:
+    """(sources to run, slugs skipped as cloud_blocked).
 
-    An unknown slug is a config error: better to abort at startup than to
-    silently run a live crawl against the wrong shops.
+    With no explicit request, every registry source runs except the
+    cloud_blocked ones. Explicitly requested slugs always run, blocked or
+    not — that is how a blocked store is re-tested. An unknown slug is a
+    config error: better to abort at startup than to silently run a live
+    crawl against the wrong shops.
     """
     if not requested:
-        return list(sources)
+        return (
+            [source for source in sources if not source.cloud_blocked],
+            [source.slug for source in sources if source.cloud_blocked],
+        )
     known = [source.slug for source in sources]
     unknown = sorted(set(requested) - set(known))
     if unknown:
@@ -220,7 +246,7 @@ def _select_sources(sources: Sequence[Source], requested: Sequence[str] | None) 
             f"unknown source slug(s): {', '.join(unknown)} (known: {', '.join(known)})"
         )
     wanted = set(requested)
-    return [source for source in sources if source.slug in wanted]
+    return [source for source in sources if source.slug in wanted], []
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -238,7 +264,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
-        sources = _select_sources(load_sources(), args.source_slugs)
+        sources, skipped = _select_sources(load_sources(), args.source_slugs)
         adapters = build_adapters(sources)
     except (ValueError, OSError, yaml.YAMLError) as exc:
         print(f"ingestion aborted (config error): {_one_line(exc)}")
@@ -250,7 +276,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             engine = get_engine()
             init_db(engine)
             with get_session_factory(engine)() as session:
-                report = run_ingestion(session, adapters)
+                report = run_ingestion(session, adapters, skipped)
     except (RuntimeError, SQLAlchemyError) as exc:
         print(f"ingestion aborted (database error): {_one_line(exc)}")
         return 1

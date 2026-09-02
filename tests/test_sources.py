@@ -23,6 +23,7 @@ sources:
     city: Rosario
     trust_notes: Established storefront.
     scraping_notes: Cloudflare filters default bot user-agents.
+    cloud_blocked: true
 """
 
 
@@ -55,7 +56,9 @@ def test_loads_sources_with_fields(tmp_path: Path) -> None:
     assert novocell.city == "Rosario"
     assert novocell.trust_notes == "Established storefront."
     assert novocell.scraping_notes is None
+    assert novocell.cloud_blocked is False
     assert sources[1].scraping_notes == "Cloudflare filters default bot user-agents."
+    assert sources[1].cloud_blocked is True
 
 
 def test_source_is_frozen(tmp_path: Path) -> None:
@@ -235,3 +238,30 @@ def test_real_registry_rosario_sources_have_coordinates():
     by_slug = {source.slug: source for source in load_sources()}
     for slug in ("novocell", "tienda-movil", "evophone", "celuphone", "litoral-accesorios"):
         assert by_slug[slug].lat is not None, slug
+
+
+def test_cloud_blocked_defaults_to_false(tmp_path: Path) -> None:
+    (source,) = load_sources(write_yaml(tmp_path, BASE_ENTRY))
+    assert source.cloud_blocked is False
+
+
+@pytest.mark.parametrize("bad_value", ['"yes"', "1", "0", "[true]"])
+def test_non_boolean_cloud_blocked_is_rejected(tmp_path: Path, bad_value: str) -> None:
+    broken = VALID_YAML.replace("cloud_blocked: true", f"cloud_blocked: {bad_value}", 1)
+    with pytest.raises(ValueError, match="cloud_blocked"):
+        load_sources(write_yaml(tmp_path, broken))
+
+
+def test_real_registry_cloud_blocked_stores_explain_themselves() -> None:
+    """Every store flagged cloud_blocked says why in its scraping_notes (the
+    403s and the flag), keeps its coordinates so the dashboard can still name
+    it and measure distance, and the flag is a real bool on every source.
+    The exact set of flagged stores is not pinned: flipping one back to
+    false when it starts answering again must not break CI."""
+    for source in load_sources():
+        assert isinstance(source.cloud_blocked, bool), source.slug
+        if source.cloud_blocked:
+            assert source.scraping_notes, source.slug
+            assert "403" in source.scraping_notes, source.slug
+            assert "cloud_blocked" in source.scraping_notes, source.slug
+            assert source.lat is not None, source.slug

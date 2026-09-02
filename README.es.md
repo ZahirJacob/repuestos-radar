@@ -66,6 +66,16 @@ repuestos de MD Repuestos necesita 160). Si un slug prioritario ya no coincide c
 categoría, queda un warning en el log, así nos enteramos cuando una tienda renombra o cambia el
 slug de una categoría.
 
+Una fuente también puede llevar `cloud_blocked: true`. Marca una tienda que responde HTTP 403 a
+nuestras IPs de la nube (GitHub Actions para la corrida diaria, Streamlit Cloud para la búsqueda
+rápida) aunque siga respondiendo normalmente desde IPs residenciales. Según la política de cortesía, a esa
+tienda se la saltea, no se le busca la vuelta: la corrida diaria por defecto y la búsqueda rápida
+la dejan afuera (el reporte de ingesta la lista como `status=skipped reason=cloud_blocked`, y el
+dashboard lo avisa con una nota propia), mientras que un `--source SLUG` explícito sí la corre, para
+poder volver a probarla. La tienda queda en el registro por su nombre y su distancia. Hoy la
+tienen puesta Evophone y Litoral Accesorios (403 desde IPs de datacenter, confirmados el
+2026-09-02); volver a poner la clave en `false` reactiva la tienda.
+
 **¿Por qué no MercadoLibre?** Su API de búsqueda de publicaciones está restringida a partners
 certificados (las credenciales comunes de aplicación y de usuario reciben 403), y sus páginas de
 publicaciones redirigen los requests automatizados — incluso con user-agent honesto — a un muro de

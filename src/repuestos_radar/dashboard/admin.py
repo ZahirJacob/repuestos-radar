@@ -77,6 +77,13 @@ def _skipped_note(report: quicksearch.QuickSearchReport) -> str | None:
     return text_es.QUICK_SEARCH_SKIPPED_NOTE.format(names=", ".join(names))
 
 
+def _blocked_note(report: quicksearch.QuickSearchReport) -> str | None:
+    if not report.blocked:
+        return None
+    names = [s.name for s in report.blocked]
+    return text_es.QUICK_SEARCH_BLOCKED_NOTE.format(names=", ".join(names))
+
+
 def _render_report(report: quicksearch.QuickSearchReport) -> None:
     if report.capped:
         st.info(text_es.QUICK_SEARCH_CAP.format(cap=quicksearch.DAILY_CAP))
@@ -84,9 +91,9 @@ def _render_report(report: quicksearch.QuickSearchReport) -> None:
     for source_report in report.sources:
         if source_report.searched and source_report.failure is not None:
             st.warning(text_es.QUICK_SEARCH_SOURCE_FAILED.format(name=source_report.name))
-    note = _skipped_note(report)
-    if note:
-        st.caption(note)
+    for note in (_skipped_note(report), _blocked_note(report)):
+        if note:
+            st.caption(note)
     st.success(text_es.QUICK_SEARCH_DONE)
 
 

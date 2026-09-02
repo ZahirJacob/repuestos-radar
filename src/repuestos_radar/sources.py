@@ -39,6 +39,13 @@ class Source:
     lat: float | None = None
     """Store latitude, hand-entered (see sources.yaml). Both lat and lon or neither."""
     lon: float | None = None
+    cloud_blocked: bool = False
+    """True when the store 403s from datacenter IPs (GitHub Actions, Streamlit
+    Cloud) while still answering residential ones. The default ingest run and
+    the quick search leave it out; an explicit ``--source SLUG`` still runs it
+    so the store can be re-tested. The store stays in the registry for names
+    and distances. Flip it back to False to re-enable the store.
+    """
 
 
 def _parse_priority_categories(index: int, value: object) -> tuple[str, ...] | None:
@@ -62,6 +69,14 @@ def _parse_max_catalog_pages(index: int, value: object) -> int | None:
         raise ValueError(
             f"source #{index}: 'max_catalog_pages' must be a positive integer when present"
         )
+    return value
+
+
+def _parse_cloud_blocked(index: int, value: object) -> bool:
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        raise ValueError(f"source #{index}: 'cloud_blocked' must be a boolean when present")
     return value
 
 
@@ -96,6 +111,7 @@ def _parse_entry(index: int, entry: object) -> Source:
         max_catalog_pages=_parse_max_catalog_pages(index, entry.get("max_catalog_pages")),
         lat=lat,
         lon=lon,
+        cloud_blocked=_parse_cloud_blocked(index, entry.get("cloud_blocked")),
     )
 
 

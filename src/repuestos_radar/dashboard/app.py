@@ -68,7 +68,11 @@ def _require_login() -> None:
         return
     st.title(text_es.APP_TITLE)
     with st.form("login"):
-        entered = st.text_input(text_es.PASSWORD_LABEL, type="password")
+        # "current-password": browsers offer save/autofill for an existing
+        # password instead of Chrome's "create a strong password" sign-up prompt.
+        entered = st.text_input(
+            text_es.PASSWORD_LABEL, type="password", autocomplete="current-password"
+        )
         submitted = st.form_submit_button(text_es.LOGIN_BUTTON, use_container_width=True)
     if submitted:
         if auth.check_password(entered, password):
