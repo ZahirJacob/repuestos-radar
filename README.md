@@ -284,8 +284,13 @@ daily crawl keeps covering them.
 
 ### Screenshots
 
-Screenshots of the deployed app:
+Screenshots of the deployed app on a phone. The repair price and margins shown ($100.000) are a
+placeholder entered for testing, not the client's real pricing.
 
-![Home](docs/images/dashboard-home.png)
-![Detail](docs/images/dashboard-detail.png)
-![Admin](docs/images/dashboard-admin.png)
+| Precios | Detalle | Detalle (márgenes y tendencia) |
+| --- | --- | --- |
+| <img src="docs/images/dashboard-home.png" width="250" alt="Home: one card per tracked part with the best price, store, distance and margin"> | <img src="docs/images/dashboard-detail.png" width="250" alt="Detail: location control, sort switch and per-tier price boxes"> | <img src="docs/images/dashboard-detail-2.png" width="250" alt="Detail: repair margins and price-trend section"> |
+
+| Ajustes (búsqueda rápida y reparaciones) | Ajustes (agregar reparación) | Ajustes (repuestos vigilados) | Ajustes (agregar repuesto o celular) |
+| --- | --- | --- | --- |
+| <img src="docs/images/dashboard-admin.png" width="200" alt="Settings: quick search and repair price list"> | <img src="docs/images/dashboard-admin-2.png" width="200" alt="Settings: add-repair form"> | <img src="docs/images/dashboard-admin-3.png" width="200" alt="Settings: tracked items list"> | <img src="docs/images/dashboard-admin-4.png" width="200" alt="Settings: add a part or phone with the kind selector"> |

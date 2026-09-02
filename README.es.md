@@ -306,8 +306,13 @@ sigue cubriendo.
 
 ### Capturas de pantalla
 
-Capturas de la app desplegada:
+Capturas de la app desplegada, en un celular. El precio de reparación y los márgenes que se ven
+($100.000) son un valor de prueba, no la lista real del cliente.
 
-![Inicio](docs/images/dashboard-home.png)
-![Detalle](docs/images/dashboard-detail.png)
-![Administración](docs/images/dashboard-admin.png)
+| Precios | Detalle | Detalle (márgenes y tendencia) |
+| --- | --- | --- |
+| <img src="docs/images/dashboard-home.png" width="250" alt="Precios: una tarjeta por repuesto vigilado con mejor precio, tienda, distancia y margen"> | <img src="docs/images/dashboard-detail.png" width="250" alt="Detalle: control de ubicación, orden y cajas de precio por calidad"> | <img src="docs/images/dashboard-detail-2.png" width="250" alt="Detalle: márgenes por reparación y tendencia"> |
+
+| Ajustes (búsqueda rápida y reparaciones) | Ajustes (agregar reparación) | Ajustes (repuestos vigilados) | Ajustes (agregar repuesto o celular) |
+| --- | --- | --- | --- |
+| <img src="docs/images/dashboard-admin.png" width="200" alt="Ajustes: búsqueda rápida y lista de precios de reparación"> | <img src="docs/images/dashboard-admin-2.png" width="200" alt="Ajustes: formulario para agregar una reparación"> | <img src="docs/images/dashboard-admin-3.png" width="200" alt="Ajustes: lista de repuestos vigilados"> | <img src="docs/images/dashboard-admin-4.png" width="200" alt="Ajustes: agregar repuesto o celular con el selector de tipo"> |
