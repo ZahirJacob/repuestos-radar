@@ -8,7 +8,7 @@ import streamlit as st
 from sqlalchemy.orm import Session
 
 from repuestos_radar import services, tracked
-from repuestos_radar.dashboard import data, quicksearch, text_es
+from repuestos_radar.dashboard import data, quicksearch, radar, text_es
 from repuestos_radar.models import TrackedItem
 from repuestos_radar.report import format_ars
 from repuestos_radar.sources import load_sources
@@ -240,7 +240,7 @@ def _render_tracked(session: Session) -> None:
 
 
 def render() -> None:
-    st.title(text_es.NAV_SETTINGS)
+    radar.page_title(text_es.NAV_SETTINGS)
     flash = _pop_flash(st.session_state)
     if flash is not None:
         kind, text = flash

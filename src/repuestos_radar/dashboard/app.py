@@ -5,8 +5,9 @@ import os
 
 import streamlit as st
 
-from repuestos_radar.dashboard import admin, auth, data, detail, home, text_es
+from repuestos_radar.dashboard import admin, auth, data, detail, home, radar, text_es
 from repuestos_radar.report import format_day
+from repuestos_radar.sources import load_sources
 
 _COOKIE_NAME = "repuestos_radar_session"
 
@@ -54,6 +55,11 @@ def _write_cookie(controller, password: str) -> None:
         controller.set(_COOKIE_NAME, auth.make_token(password), max_age=auth.TOKEN_TTL_SECONDS)
 
 
+def _radar_store_count() -> int:
+    """Stores the radar can actually reach from the cloud (not cloud_blocked)."""
+    return sum(1 for source in load_sources() if not source.cloud_blocked)
+
+
 def _require_login() -> None:
     password = _expected_password()
     if not password:
@@ -66,7 +72,7 @@ def _require_login() -> None:
     if isinstance(token, str) and auth.token_valid(password, token):
         st.session_state["authed"] = True
         return
-    st.title(text_es.APP_TITLE)
+    radar.render_login_panel(text_es.LOGIN_STATUS.format(count=_radar_store_count()))
     with st.form("login"):
         # "current-password": browsers offer save/autofill for an existing
         # password instead of Chrome's "create a strong password" sign-up prompt.
@@ -109,7 +115,7 @@ def _freshness_footer() -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title=text_es.APP_TITLE, page_icon="📱", layout="centered")
+    st.set_page_config(page_title=text_es.APP_TITLE, page_icon="📡", layout="centered")
     _require_login()
     st.navigation(_build_pages()).run()
     _freshness_footer()

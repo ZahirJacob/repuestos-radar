@@ -80,6 +80,24 @@ def test_login_gate_blocks_without_password(seeded_db):
     assert "authed" not in at.session_state or not at.session_state["authed"]
 
 
+def test_login_screen_shows_the_radar_panel_instead_of_a_title(seeded_db):
+    """The brand now lives in the radar panel (raw HTML through st.markdown),
+    so there is no st.title on the login screen any more."""
+    at = _app(seeded_db).run()
+    assert not at.title
+    panels = [m.value for m in at.markdown if "<svg" in m.value]
+    assert len(panels) == 1
+    assert "Repuestos Radar" in panels[0]
+    assert "6 tiendas en el radar" in panels[0]  # registry minus cloud_blocked stores
+
+
+def test_pages_carry_the_logo_title(seeded_db):
+    at = _login(_app(seeded_db).run())
+    assert not at.title
+    titles = [m.value for m in at.markdown if "<h1>" in m.value]
+    assert len(titles) == 1 and "<h1>Precios</h1>" in titles[0] and "<svg" in titles[0]
+
+
 def test_password_field_is_marked_as_an_existing_password(seeded_db):
     """autocomplete="current-password": browsers offer to save/autofill the
     password instead of Chrome's "create a strong password" sign-up prompt."""

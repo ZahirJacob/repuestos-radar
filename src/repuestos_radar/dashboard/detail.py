@@ -18,7 +18,7 @@ from repuestos_radar.analysis import (
     listings_for_day,
     tier_trends,
 )
-from repuestos_radar.dashboard import data, distance, text_es
+from repuestos_radar.dashboard import data, distance, radar, text_es
 from repuestos_radar.margin import margins_for
 from repuestos_radar.models import ServicePrice, TrackedItem
 from repuestos_radar.relevance import Relevance
@@ -146,12 +146,30 @@ def _reference_point() -> tuple[float, float] | None:
     return current or shop
 
 
+def md_ars(price: Decimal) -> str:
+    """``format_ars`` for ``st.markdown``: the ``$`` is escaped.
+
+    Streamlit's markdown treats ``$...$`` as inline LaTeX, so two prices in
+    one string ("entre $20.700 y $23.500") lost their dollar signs and turned
+    the text between them into math. Every price that goes into a markdown
+    string on this page passes through here.
+    """
+    return format_ars(price).replace("$", "\\$")
+
+
 def _offer_line(offer: StoreOffer, names: dict[str, str], distance_text: str | None) -> str:
+    """One store offer as a markdown block: price first and big, then the
+    store link (and distance), then any warning as an orange line.
+
+    The price is a ``####`` heading rather than a two-column row: Streamlit
+    stacks columns on a phone-width screen, so a side-by-side layout would
+    come apart exactly where the client reads it.
+    """
     name = names.get(offer.source_slug, offer.source_slug)
-    parts = [f"[{name}]({offer.url})", f"**{format_ars(offer.price)}**"]
+    parts = [f"[{name}]({offer.url})"]
     if distance_text is not None:
         parts.append(distance_text)
-    line = " — ".join(parts)
+    line = f"#### {md_ars(offer.price)}\n" + " — ".join(parts)
     warnings = []
     if offer.outlier:
         warnings.append(text_es.OUTLIER_WARNING)
@@ -162,13 +180,19 @@ def _offer_line(offer: StoreOffer, names: dict[str, str], distance_text: str | N
     return line
 
 
+def _fair_price_highlight(analysis: TierAnalysis) -> str:
+    """The fair-price line on a colored background, so it stands apart from the
+    store rows above it (blue: informational, unlike the green/red of margins)."""
+    return f":blue-background[{_fair_price_line(analysis)}]"
+
+
 def _fair_price_line(analysis: TierAnalysis) -> str:
     if analysis.basis == BASIS_MEDIAN:
-        line = f"{text_es.FAIR_PRICE_PREFIX} **{format_ars(analysis.fair_price)}**"
+        line = f"{text_es.FAIR_PRICE_PREFIX} **{md_ars(analysis.fair_price)}**"
         if analysis.store_count <= 3:
             line += " — " + text_es.FAIR_PRICE_RANGE.format(
-                low=format_ars(analysis.price_min),
-                high=format_ars(analysis.price_max),
+                low=md_ars(analysis.price_min),
+                high=md_ars(analysis.price_max),
                 count=analysis.store_count,
             )
         return line
@@ -191,8 +215,32 @@ def _select_item(session) -> TrackedItem | None:
     return by_id[choice]
 
 
+def _render_margins(
+    services: Sequence[ServicePrice], analyses: Sequence[TierAnalysis], names: dict[str, str]
+) -> None:
+    with st.container(border=True):
+        st.subheader(text_es.MARGIN_HEADER)
+        for service in services:
+            for tier_margin in margins_for(service.price_ars, analyses):
+                verb = (
+                    text_es.MARGIN_VERB_GAIN
+                    if tier_margin.margin >= 0
+                    else text_es.MARGIN_VERB_LOSS
+                )
+                st.markdown(
+                    text_es.MARGIN_LINE.format(
+                        label=service.label,
+                        service=md_ars(service.price_ars),
+                        verb=verb,
+                        amount=md_ars(abs(tier_margin.margin)),
+                        store=names.get(tier_margin.part_source, tier_margin.part_source),
+                        tier=TIER_LABELS_ES[tier_margin.tier],
+                    )
+                )
+
+
 def render() -> None:
-    st.title(text_es.NAV_DETAIL)
+    radar.page_title(text_es.NAV_DETAIL)
     names = source_names()
     with data.open_session() as session:
         item = _select_item(session)
@@ -213,36 +261,24 @@ def render() -> None:
         sort_key = "distancia" if sort == text_es.SORT_DISTANCE else "precio"
 
         for analysis in analyses:
-            st.subheader(TIER_LABELS_ES[analysis.tier])
-            for offer in _sorted_offers(analysis.offers, sort_key, reference, coords):
-                st.markdown(
-                    _offer_line(offer, names, _distance_for(offer.source_slug, reference, coords))
-                )
-            st.markdown(_fair_price_line(analysis))
+            with st.container(border=True):
+                st.subheader(TIER_LABELS_ES[analysis.tier])
+                for offer in _sorted_offers(analysis.offers, sort_key, reference, coords):
+                    st.markdown(
+                        _offer_line(
+                            offer, names, _distance_for(offer.source_slug, reference, coords)
+                        )
+                    )
+                st.markdown(_fair_price_highlight(analysis))
 
         services = session.scalars(
             select(ServicePrice).where(ServicePrice.tracked_item_id == item.id)
         ).all()
         if services:
-            st.subheader(text_es.MARGIN_HEADER)
-            for service in services:
-                for tier_margin in margins_for(service.price_ars, analyses):
-                    verb = (
-                        text_es.MARGIN_VERB_GAIN
-                        if tier_margin.margin >= 0
-                        else text_es.MARGIN_VERB_LOSS
-                    )
-                    st.markdown(
-                        text_es.MARGIN_LINE.format(
-                            label=service.label,
-                            service=format_ars(service.price_ars),
-                            verb=verb,
-                            amount=format_ars(abs(tier_margin.margin)),
-                            store=names.get(tier_margin.part_source, tier_margin.part_source),
-                            tier=TIER_LABELS_ES[tier_margin.tier],
-                        )
-                    )
+            st.divider()
+            _render_margins(services, analyses, names)
 
+        st.divider()
         for analysis in analyses:
             points = tier_trends(session, item.id, analysis.tier, day)
             shown = [p for p in points if p.direction]

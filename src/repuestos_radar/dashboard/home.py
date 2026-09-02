@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from repuestos_radar.analysis import TierAnalysis, analyze_item, latest_day, listings_for_day
-from repuestos_radar.dashboard import data, text_es
+from repuestos_radar.dashboard import data, radar, text_es
 from repuestos_radar.dashboard.detail import source_names
 from repuestos_radar.margin import margins_for
 from repuestos_radar.models import ServicePrice, TrackedItem
@@ -37,7 +37,7 @@ def _needs_review(analyses: list[TierAnalysis]) -> bool:
 def render() -> None:
     from repuestos_radar.dashboard.app import PAGES  # late: app builds PAGES first
 
-    st.title(text_es.NAV_PRICES)
+    radar.page_title(text_es.NAV_PRICES)
     with data.open_session() as session:
         items = session.scalars(
             select(TrackedItem).where(TrackedItem.active).order_by(TrackedItem.id)
@@ -53,10 +53,8 @@ def render() -> None:
                 else:
                     tier_label = TIER_LABELS_ES[best.tier]
                     store = source_names().get(best.source_slug, best.source_slug)
-                    st.markdown(
-                        f"{text_es.BEST_PREFIX} **{format_ars(best.price)}** — "
-                        f"{store} ({tier_label})"
-                    )
+                    st.markdown(f"## {format_ars(best.price)}")
+                    st.caption(f"{text_es.BEST_PREFIX} {store} ({tier_label})")
                     margin = _best_margin(session, item.id, analyses)
                     if margin is not None:
                         amount = format_ars(abs(margin.margin))

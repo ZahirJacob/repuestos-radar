@@ -238,7 +238,10 @@ The client-facing surface: a phone-first Streamlit app in Spanish, behind one sh
 Home shows a card per tracked part (best price, margin, warnings); the detail page ranks stores
 per quality tier with fair prices, straight-line distances, margins per repair, and price trends;
 the admin page (Ajustes) manages repair prices and tracked parts and runs a quick search on
-demand.
+demand. The login screen opens with the app's radar — a CSS-only sweep whose red blips flash as the
+line passes them, with a status line counting the stores the cloud can reach — and every page
+title carries the small sweeping logo (`dashboard/radar.py`; motion stops under
+`prefers-reduced-motion`).
 
 To run it locally:
 

@@ -11,6 +11,7 @@ PASSWORD_LABEL = "Contraseña"
 LOGIN_BUTTON = "Entrar"
 WRONG_PASSWORD = "Contraseña incorrecta."
 NO_PASSWORD_CONFIGURED = "Falta configurar la contraseña de la app. Avisale al equipo."
+LOGIN_STATUS = "Rosario · {count} tiendas en el radar"
 
 # Navigation
 NAV_PRICES = "Precios"
