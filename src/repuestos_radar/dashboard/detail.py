@@ -1,5 +1,6 @@
 """Part detail: stores by tier, fair price, margins, trend — M3 priority order."""
 
+import math
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
@@ -113,14 +114,15 @@ def distance_pill(distance_text: str) -> str:
 
 
 def _adopt_reading(state, location: dict | None) -> bool:
-    """Adopt a NEW geolocation reading as the reference point.
+    """Adopt a geolocation reading as the reference point; True when the
+    state changed (the caller reruns).
 
-    Only a reading that differs from the last one ADOPTED is taken: while the
-    browser component stays mounted, Streamlit hands its last value back on
-    every rerun, not just when the browser answered. Comparing against
-    ``reference_point`` itself would re-adopt that stale reading right after
-    "Volver al local" clears it, making the button visibly do nothing.
-    Returns True when the state changed (caller reruns).
+    A reading equal to the last one adopted is ignored. The guarantee this
+    gives: while a request is mounted, a rerun caused by any other widget
+    hands the same answer back, and it must not count as a new tap. It never
+    blocks a deliberate tap, because ``_request_location`` resets the baseline
+    on every tap and the component is unmounted right after adoption (so
+    "Volver al local" has nothing to replay against).
     """
     if not location or location.get("latitude") is None:
         return False
@@ -138,15 +140,25 @@ def _reading_from_answer(answer: object) -> dict | None:
     The component answers None until the browser replies, then either
     ``{"coords": {"latitude": ..., "longitude": ..., ...}, "timestamp": ...}``
     or ``{"error": {"code": ..., "message": ...}}`` (permission denied and
-    the like are resolved, not raised). Anything else is treated as no
-    reading yet.
+    the like are resolved, not raised). Anything else — no answer yet, a
+    missing or non-numeric coordinate, NaN/inf, or a point off the globe —
+    is treated as no reading.
     """
     if not isinstance(answer, dict):
         return None
     coords = answer.get("coords")
     if not isinstance(coords, dict):
         return None
-    return {"latitude": coords.get("latitude"), "longitude": coords.get("longitude")}
+    try:
+        latitude = float(coords["latitude"])
+        longitude = float(coords["longitude"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not (math.isfinite(latitude) and math.isfinite(longitude)):
+        return None
+    if not (-90.0 <= latitude <= 90.0 and -180.0 <= longitude <= 180.0):
+        return None
+    return {"latitude": latitude, "longitude": longitude}
 
 
 def _answer_is_denied(answer: object) -> bool:
@@ -177,14 +189,27 @@ def _back_to_shop(state) -> None:
     state.pop("geo_denied", None)
 
 
-def _ask_browser(request_id: int) -> object:
-    """Render the geolocation component for this request and return its
-    answer so far. The import is guarded: under AppTest, or on any component
-    breakage, the page degrades to shop-only distances (no crash)."""
+def _geolocation():
+    """The component's ``get_geolocation``, or None when it cannot be
+    imported. Guarded so that a broken or missing component degrades the page
+    to shop-only distances (the button is shown disabled) instead of a crash.
+    """
     try:
         from streamlit_js_eval import get_geolocation
+    except Exception:
+        return None
+    return get_geolocation
 
-        return get_geolocation(component_key=f"geo-{request_id}")
+
+def _ask_browser(request_id: int) -> object:
+    """Render the geolocation component for this request and return its
+    answer so far (None until the browser replies, or on any component
+    breakage)."""
+    ask = _geolocation()
+    if ask is None:
+        return None
+    try:
+        return ask(component_key=f"geo-{request_id}")
     except Exception:
         return None
 
@@ -205,6 +230,7 @@ def _reference_point() -> tuple[float, float] | None:
             type="primary",
             icon=":material/my_location:",
             width="stretch",
+            disabled=_geolocation() is None,  # no component: an honest dead button
         ):
             _request_location(state)
         if back_column.button(

@@ -16,9 +16,9 @@ from repuestos_radar.report import TIER_LABELS_ES, format_ars
 
 
 def _best_caption(store: str, tier_label: str, distance_text: str | None) -> str:
-    """``📍 Mejor precio en Celuphone (Original)`` plus a distance pill from
-    the shop when both positions are known."""
-    caption = "📍 " + text_es.BEST_CAPTION.format(store=store, tier=tier_label)
+    """``Mejor precio en Celuphone (Original)`` plus a distance pill from the
+    shop when both positions are known (the pill carries the pin)."""
+    caption = text_es.BEST_CAPTION.format(store=store, tier=tier_label)
     if distance_text is not None:
         caption += " " + distance_pill(distance_text)
     return caption

@@ -4,6 +4,9 @@ detail.py and the note below)."""
 
 from decimal import Decimal
 
+import pytest
+from streamlit.testing.v1 import AppTest
+
 from repuestos_radar.analysis import BASIS_MEDIAN, BASIS_SINGLE_STORE, StoreOffer, TierAnalysis
 from repuestos_radar.dashboard import detail, text_es
 
@@ -108,13 +111,16 @@ def test_fair_price_line_single_store_is_honest():
 
 
 def test_adopt_reading_takes_new_reading_once():
+    """Within one request, the same answer handed back on a later rerun (any
+    other widget can cause one while the component is mounted) counts once."""
     state = {}
     reading = {"latitude": -32.95, "longitude": -60.65}
-    # The user clicks the component button: the reading is adopted.
     assert detail._adopt_reading(state, reading) is True
     assert state["reference_point"] == (-32.95, -60.65)
-    # Next rerun: the component replays the same reading — no change, no rerun.
     assert detail._adopt_reading(state, reading) is False
+    # A different reading within the same request is still taken.
+    assert detail._adopt_reading(state, {"latitude": -32.96, "longitude": -60.65}) is True
+    assert state["reference_point"] == (-32.96, -60.65)
 
 
 def test_adopt_reading_ignores_empty_or_null_reading():
@@ -122,21 +128,6 @@ def test_adopt_reading_ignores_empty_or_null_reading():
     assert detail._adopt_reading(state, None) is False
     assert detail._adopt_reading(state, {"latitude": None, "longitude": None}) is False
     assert state == {}
-
-
-def test_back_to_shop_survives_stale_component_reading():
-    """Tap "Volver al local", then rerun: while the browser component stays
-    mounted Streamlit hands back its last value on every rerun, and that
-    stale reading must NOT be re-adopted — otherwise the button visibly does
-    nothing (PR #21 blocker).
-    """
-    state = {}
-    reading = {"latitude": -32.95, "longitude": -60.65}
-    detail._adopt_reading(state, reading)  # user opted in earlier this visit
-    detail._back_to_shop(state)  # user taps "Volver al local"
-    # Rerun: the component still returns the old reading.
-    assert detail._adopt_reading(state, reading) is False
-    assert "reference_point" not in state
 
 
 def test_back_to_shop_clears_pending_and_denied_requests_but_keeps_nothing_stored():
@@ -173,12 +164,38 @@ def test_reading_from_answer_flattens_the_component_shape():
     assert detail._reading_from_answer(None) is None  # browser has not answered yet
     assert detail._reading_from_answer({"error": {"code": 1, "message": "denied"}}) is None
     assert detail._reading_from_answer("garbage") is None
+    # Numeric strings are coerced (the JSON bridge may hand them over as text).
+    assert detail._reading_from_answer(
+        {"coords": {"latitude": "-32.95", "longitude": "-60.65"}}
+    ) == {
+        "latitude": -32.95,
+        "longitude": -60.65,
+    }
     assert detail._answer_is_denied({"error": {"code": 1, "message": "denied"}}) is True
     assert detail._answer_is_denied(answer) is False
     assert detail._answer_is_denied(None) is False
 
 
-def test_ask_browser_degrades_to_no_answer_without_the_component(monkeypatch):
+@pytest.mark.parametrize(
+    "coords",
+    [
+        {"latitude": -32.95},  # longitude missing
+        {"latitude": None, "longitude": -60.65},
+        {"latitude": "sur", "longitude": -60.65},  # not a number
+        {"latitude": float("nan"), "longitude": -60.65},
+        {"latitude": -32.95, "longitude": float("inf")},
+        {"latitude": 90.5, "longitude": -60.65},  # off the globe
+        {"latitude": -32.95, "longitude": -180.5},
+        [-32.95, -60.65],  # not even a mapping
+    ],
+)
+def test_reading_from_answer_rejects_bad_coordinates(coords):
+    assert detail._reading_from_answer({"coords": coords}) is None
+
+
+@pytest.fixture()
+def no_component(monkeypatch):
+    """Make ``import streamlit_js_eval`` fail, as on a broken deploy."""
     import builtins
 
     real_import = builtins.__import__
@@ -189,7 +206,105 @@ def test_ask_browser_degrades_to_no_answer_without_the_component(monkeypatch):
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", failing_import)
+
+
+def test_ask_browser_degrades_to_no_answer_without_the_component(no_component):
+    assert detail._geolocation() is None
     assert detail._ask_browser(1) is None
+
+
+def test_location_button_is_disabled_without_the_component(no_component):
+    at = AppTest.from_string(_REFERENCE_POINT_SCRIPT, default_timeout=10).run()
+    assert not at.exception
+    use, back = at.button
+    assert use.label == text_es.USE_MY_LOCATION and use.disabled is True
+    assert back.label == text_es.BACK_TO_SHOP and back.disabled is False
+
+
+_REFERENCE_POINT_SCRIPT = """
+import streamlit as st
+from repuestos_radar.dashboard import detail
+
+st.session_state["reference"] = detail._reference_point()
+"""
+
+
+def _reference_point_app(monkeypatch, answers: dict[int, object]) -> AppTest:
+    """``_reference_point`` alone, with the browser stubbed: ``answers`` maps
+    a request id to what the component returns for it."""
+    monkeypatch.setenv("SHOP_LAT", "-32.9468")
+    monkeypatch.setenv("SHOP_LON", "-60.6393")
+    monkeypatch.setattr(detail, "_ask_browser", lambda request_id: answers.get(request_id))
+    return AppTest.from_string(_REFERENCE_POINT_SCRIPT, default_timeout=10)
+
+
+def _from_line(at: AppTest) -> str:
+    return at.markdown[0].value
+
+
+def test_reference_point_tap_answer_adopt_then_back_to_shop(monkeypatch):
+    answers: dict[int, object] = {}
+    at = _reference_point_app(monkeypatch, answers).run()
+    assert not at.exception
+    assert _from_line(at) == f"📍 {text_es.FROM_SHOP}"
+    assert at.session_state["reference"] == (-32.9468, -60.6393)
+
+    # Tap: the request is pending, the browser has not answered yet.
+    at.button[0].click().run()
+    assert at.session_state["geo_requested"] is True
+    assert at.session_state["geo_request_id"] == 1
+    assert _from_line(at) == f"📍 {text_es.FROM_SHOP}"
+
+    # The answer arrives on a later rerun: adopted, component unmounted.
+    answers[1] = {"coords": {"latitude": -32.95, "longitude": -60.65}}
+    at.run()
+    assert not at.exception
+    assert _from_line(at) == f"📍 {text_es.FROM_MY_LOCATION}"
+    assert at.session_state["reference"] == (-32.95, -60.65)
+    assert at.session_state["reference_point"] == (-32.95, -60.65)
+    assert "geo_requested" not in at.session_state
+
+    # "Volver al local": back to the shop, and the old answer never returns.
+    at.button[1].click().run()
+    assert _from_line(at) == f"📍 {text_es.FROM_SHOP}"
+    assert at.session_state["reference"] == (-32.9468, -60.6393)
+    assert "reference_point" not in at.session_state
+    at.run()  # one more rerun: still the shop
+    assert _from_line(at) == f"📍 {text_es.FROM_SHOP}"
+
+    # A second tap from the same spot is adopted again (fresh request id).
+    at.button[0].click().run()
+    assert at.session_state["geo_request_id"] == 2
+    answers[2] = {"coords": {"latitude": -32.95, "longitude": -60.65}}
+    at.run()
+    assert _from_line(at) == f"📍 {text_es.FROM_MY_LOCATION}"
+
+
+def test_reference_point_tap_then_back_ignores_a_late_answer(monkeypatch):
+    answers: dict[int, object] = {}
+    at = _reference_point_app(monkeypatch, answers).run()
+    at.button[0].click().run()  # tap: pending
+    at.button[1].click().run()  # back to the shop before the browser answers
+    assert "geo_requested" not in at.session_state
+    answers[1] = {"coords": {"latitude": -32.95, "longitude": -60.65}}  # late answer
+    at.run()
+    assert not at.exception
+    assert _from_line(at) == f"📍 {text_es.FROM_SHOP}"
+    assert "reference_point" not in at.session_state
+    assert at.session_state["reference"] == (-32.9468, -60.6393)
+
+
+def test_reference_point_denied_answer_shows_the_caption(monkeypatch):
+    answers: dict[int, object] = {1: {"error": {"code": 1, "message": "User denied"}}}
+    at = _reference_point_app(monkeypatch, answers).run()
+    at.button[0].click().run()
+    assert not at.exception
+    assert at.session_state["geo_denied"] is True
+    assert "geo_requested" not in at.session_state
+    assert [c.value for c in at.caption] == [text_es.LOCATION_DENIED]
+    assert _from_line(at) == f"📍 {text_es.FROM_SHOP}"
+    at.button[1].click().run()  # back to the shop clears the note
+    assert not at.caption
 
 
 def test_distance_pill_and_distance_from_shop(monkeypatch):

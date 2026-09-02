@@ -42,9 +42,7 @@ TIER_STORE_COUNT_ONE = "1 tienda"
 FAIR_PRICE_PREFIX = "Precio justo:"
 FAIR_PRICE_RANGE = "entre {low} y {high} ({count} tiendas)"
 SINGLE_STORE_NOTE = "una sola tienda tiene este repuesto — no hay precio de mercado"
-OUTLIER_WARNING = (
-    "precio muy alejado del resto — puede ser error, calidad mal etiquetada o una oferta real"
-)
+OUTLIER_WARNING = "muy alejado del resto — puede ser error u oferta real"
 LOW_CONFIDENCE_WARNING = "puede ser otro modelo"
 MARGIN_HEADER = "Márgenes por reparación"
 MARGIN_LINE = "{label} ({service}): {verb} {amount} con el repuesto de {store} ({tier})"
@@ -63,7 +61,7 @@ FROM_MY_LOCATION = "Desde: tu ubicación"
 USE_MY_LOCATION = "Usar mi ubicación"
 BACK_TO_SHOP = "Volver al local"
 LOCATION_DENIED = (
-    "No pudimos usar tu ubicación (no diste permiso). Seguimos midiendo desde el local."
+    "No pudimos usar tu ubicación (el celular no la compartió). Seguimos midiendo desde el local."
 )
 NO_SHOP_LOCATION = "Falta configurar la ubicación del local. Avisale al equipo."
 NO_STORE_LOCATION = "—"
