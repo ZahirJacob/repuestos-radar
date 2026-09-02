@@ -19,9 +19,26 @@ from repuestos_radar.services import (
     add_service,
     list_services,
     main,
+    parse_price,
     remove_service,
     set_price,
 )
+
+
+@pytest.mark.parametrize(
+    ("raw", "price", "reason"),
+    [
+        ("85000", Decimal("85000.00"), None),
+        ("85000.555", Decimal("85000.56"), None),
+        ("nan", None, "not a number"),
+        ("inf", None, "not a number"),
+        ("abc", None, "not a number"),
+        ("-5", None, "not positive"),
+        ("0", None, "not positive"),
+    ],
+)
+def test_parse_price(raw, price, reason):
+    assert parse_price(raw) == (price, reason)
 
 
 @pytest.fixture()

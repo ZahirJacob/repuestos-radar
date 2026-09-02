@@ -92,24 +92,33 @@ def remove_service(session: Session, service_id: int) -> str:
     return REMOVED
 
 
-def _parse_price(raw: str) -> Decimal | None:
-    """A positive Decimal in whole centavos, or None after a one-line error.
+def parse_price(raw: str) -> tuple[Decimal | None, str | None]:
+    """A positive Decimal in whole centavos, or a machine-checkable reason.
 
     Decimal happily parses "nan" and "inf", so finiteness is checked before
     the sign (comparing NaN raises InvalidOperation). Quantizing here makes
-    the echoed price match what Numeric(12, 2) will store.
+    the value match what Numeric(12, 2) will store. The dashboard admin page
+    shares this exact validation with the CLI.
     """
     try:
         price = Decimal(raw)
     except InvalidOperation:
-        price = None
-    if price is None or not price.is_finite():
-        print(f'error: price must be a number, got "{raw}"')
-        return None
+        return None, "not a number"
+    if not price.is_finite():
+        return None, "not a number"
     if price <= 0:
+        return None, "not positive"
+    return price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), None
+
+
+def _parse_price(raw: str) -> Decimal | None:
+    """CLI wrapper over parse_price: same one-line error messages as always."""
+    price, reason = parse_price(raw)
+    if reason == "not a number":
+        print(f'error: price must be a number, got "{raw}"')
+    elif reason == "not positive":
         print("error: price must be positive")
-        return None
-    return price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return price
 
 
 def _describe(service: ServicePrice) -> str:
