@@ -8,8 +8,10 @@ import streamlit as st
 from sqlalchemy.orm import Session
 
 from repuestos_radar import services, tracked
-from repuestos_radar.dashboard import data, text_es
+from repuestos_radar.dashboard import data, quicksearch, text_es
+from repuestos_radar.models import TrackedItem
 from repuestos_radar.report import format_ars
+from repuestos_radar.sources import load_sources
 
 
 def _price_error(reason: str | None) -> str | None:
@@ -40,6 +42,54 @@ def _set_service_price(session: Session, service_id: int, raw_price: str) -> str
     services.set_price(session, service_id, price)
     session.commit()
     return None
+
+
+def _skipped_note(report: quicksearch.QuickSearchReport) -> str | None:
+    names = [s.name for s in report.sources if not s.searched]
+    if not names:
+        return None
+    return text_es.QUICK_SEARCH_SKIPPED_NOTE.format(names=", ".join(names))
+
+
+def _render_quick_search(session: Session) -> None:
+    st.subheader(text_es.QUICK_SEARCH_HEADER)
+    used = quicksearch.runs_today(session)
+    st.caption(text_es.QUICK_SEARCH_USED.format(used=used, cap=quicksearch.DAILY_CAP))
+    items = {item.id: item.query for item in tracked.list_items(session) if item.active}
+    if not items:
+        return
+    preselect = st.session_state.get("quick-search-item")
+    ids = list(items)
+    index = ids.index(preselect) if preselect in items else 0
+    item_id = st.selectbox(text_es.QUICK_SEARCH_ITEM_FIELD, ids, index=index, format_func=items.get)
+    capped = used >= quicksearch.DAILY_CAP
+    if capped:
+        st.info(text_es.QUICK_SEARCH_CAP.format(cap=quicksearch.DAILY_CAP))
+    if st.button(text_es.QUICK_SEARCH_BUTTON, disabled=capped, use_container_width=True):
+        item = session.get(TrackedItem, item_id)
+        with st.status(text_es.QUICK_SEARCH_RUNNING, expanded=True) as status:
+            try:
+                report = quicksearch.quick_search(
+                    session,
+                    item,
+                    load_sources(),
+                    progress=lambda name: status.write(
+                        text_es.QUICK_SEARCH_PROGRESS.format(name=name)
+                    ),
+                )
+            except quicksearch.QuickSearchBusy:
+                status.update(label=text_es.QUICK_SEARCH_BUSY, state="error")
+                return
+        if report.capped:
+            st.info(text_es.QUICK_SEARCH_CAP.format(cap=quicksearch.DAILY_CAP))
+            return
+        for source_report in report.sources:
+            if source_report.searched and source_report.failure is not None:
+                st.warning(text_es.QUICK_SEARCH_SOURCE_FAILED.format(name=source_report.name))
+        note = _skipped_note(report)
+        if note:
+            st.caption(note)
+        st.success(text_es.QUICK_SEARCH_DONE)
 
 
 def _render_services(session: Session) -> None:
@@ -139,6 +189,8 @@ def _render_tracked(session: Session) -> None:
 def render() -> None:
     st.title(text_es.NAV_SETTINGS)
     with data.open_session() as session:
+        _render_quick_search(session)
+        st.divider()
         _render_services(session)
         st.divider()
         _render_tracked(session)
