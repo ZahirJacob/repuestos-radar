@@ -24,16 +24,17 @@ def test_haversine_short_city_hop():
 @pytest.mark.parametrize(
     ("km", "expected"),
     [
-        (0.85, "850 m"),
-        (0.9999, "1,0 km"),  # rounds to 1000 m -> promoted to km
-        (0.049, "50 m"),
-        (2.14, "2,1 km"),
-        (9.96, "10 km"),  # rounds to 10.0 -> promoted to integer km
-        (12.4, "12 km"),
-        (278.6, "279 km"),
+        (0.85, "850\u00a0m"),
+        (0.9999, "1,0\u00a0km"),  # rounds to 1000 m -> promoted to km
+        (0.049, "50\u00a0m"),
+        (2.14, "2,1\u00a0km"),
+        (9.96, "10\u00a0km"),  # rounds to 10.0 -> promoted to integer km
+        (12.4, "12\u00a0km"),
+        (278.6, "279\u00a0km"),
     ],
 )
 def test_format_distance(km, expected):
+    # The unit is joined with a non-breaking space so the pill never wraps.
     assert format_distance_km(km) == expected
 
 

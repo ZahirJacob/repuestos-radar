@@ -7,7 +7,7 @@ import streamlit as st
 
 from repuestos_radar.dashboard import admin, auth, data, detail, home, radar, text_es
 from repuestos_radar.report import format_day
-from repuestos_radar.sources import load_sources
+from repuestos_radar.sources import CLOUD_CHANNELS, load_sources
 
 _COOKIE_NAME = "repuestos_radar_session"
 
@@ -56,13 +56,18 @@ def _write_cookie(controller, password: str) -> None:
 
 
 def _count_reachable_sources(loader=load_sources) -> int | None:
-    """Stores the radar can actually reach from the cloud (not cloud_blocked).
+    """Stores the radar can reach from at least one cloud channel (the daily
+    run or the quick search); a store cloud_blocked on both is not counted.
 
     None when the registry cannot be read: a bad sources.yaml must never put
     a traceback on the login screen, only drop the count from the status line.
     """
     try:
-        return sum(1 for source in loader() if not source.cloud_blocked)
+        return sum(
+            1
+            for source in loader()
+            if not all(source.is_blocked(channel) for channel in CLOUD_CHANNELS)
+        )
     except Exception:
         return None
 

@@ -67,15 +67,21 @@ repuestos de MD Repuestos necesita 160). Si un slug prioritario ya no coincide c
 categoría, queda un warning en el log, así nos enteramos cuando una tienda renombra o cambia el
 slug de una categoría.
 
-Una fuente también puede llevar `cloud_blocked: true`. Marca una tienda que responde HTTP 403 a
-nuestras IPs de la nube (GitHub Actions para la corrida diaria, Streamlit Cloud para la búsqueda
-rápida) aunque siga respondiendo normalmente desde IPs residenciales. Según la política de cortesía, a esa
-tienda se la saltea, no se le busca la vuelta: la corrida diaria por defecto y la búsqueda rápida
-la dejan afuera (el reporte de ingesta la lista como `status=skipped reason=cloud_blocked`, y el
-dashboard lo avisa con una nota propia), mientras que un `--source SLUG` explícito sí la corre, para
-poder volver a probarla. La tienda queda en el registro, así el dashboard puede seguir mostrando
-su nombre y su distancia. Hoy la tienen puesta Evophone y Litoral Accesorios (403 desde IPs de
-datacenter, confirmados el 2026-09-02); volver a poner la clave en `false` reactiva la tienda.
+Una fuente también puede llevar `cloud_blocked`. Marca una tienda que responde HTTP 403 a
+nuestras IPs de la nube aunque siga atendiendo normalmente a las visitas desde IPs residenciales.
+Las dos nubes no son iguales (la corrida diaria corre en GitHub Actions, la búsqueda rápida del
+dashboard en Streamlit Cloud), así que la clave nombra canales: `true` bloquea los dos
+(`[daily, quick]` también se acepta, pero la forma que usamos es `true`), `[daily]` o `[quick]`
+bloquea solo ese, y `false` (o directamente no poner la clave) no bloquea ninguno. Según la
+política de cortesía, a una tienda bloqueada se la saltea, no se le busca la vuelta: la corrida
+diaria deja afuera las tiendas bloqueadas para `daily` (el reporte de ingesta las lista como
+`status=skipped reason=cloud_blocked`) y la búsqueda rápida deja afuera las bloqueadas para `quick`
+(el dashboard lo avisa con una nota propia), mientras que un `--source SLUG` explícito sí corre la
+tienda, para poder volver a probarla. La tienda queda en el registro, así el dashboard puede seguir
+mostrando su nombre y su distancia. Hoy Evophone tiene `[daily]` (responde 403 a GitHub Actions
+pero sí contesta a Streamlit Cloud, así que sigue en la búsqueda rápida) y Litoral Accesorios tiene
+`true` (403 desde las dos nubes), confirmados el 2026-09-02; sacar la clave reactiva la tienda en
+todos lados.
 
 **¿Por qué no MercadoLibre?** Su API de búsqueda de publicaciones está restringida a partners
 certificados (las credenciales comunes de aplicación y de usuario reciben 403), y sus páginas de

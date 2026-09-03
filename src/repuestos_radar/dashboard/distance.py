@@ -24,14 +24,19 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def format_distance_km(km: float) -> str:
-    """ "850 m" under 1 km, "2,1 km" under 10, whole km from there up."""
+    """ "850 m" under 1 km, "2,1 km" under 10, whole km from there up.
+
+    The space before the unit is non-breaking: the text lands in a pill on a
+    phone-width screen, which must not wrap between the number and the unit.
+    Only the dashboard formats distances, so no plain-space variant exists.
+    """
     meters = round(km * 1000)
     if meters < 1000:
         # Round short hops to 10 m — fake precision helps nobody.
-        return f"{round(meters, -1)} m"
+        return f"{round(meters, -1)}\u00a0m"
     if km < 9.95:  # under this, one decimal still rounds below 10,0
-        return f"{km:.1f}".replace(".", ",") + " km"
-    return f"{round(km)} km"
+        return f"{km:.1f}".replace(".", ",") + "\u00a0km"
+    return f"{round(km)}\u00a0km"
 
 
 def shop_location() -> tuple[float, float] | None:

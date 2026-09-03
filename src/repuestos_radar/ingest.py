@@ -13,10 +13,11 @@ session is committed after each (tracked item, source) save, so partial
 progress survives a crash; storage is idempotent per day, so re-runs are
 safe.
 
-Sources flagged ``cloud_blocked`` in the registry (they 403 from datacenter
-IPs) are left out of the default run — listed in the report as
-``status=skipped reason=cloud_blocked``, never attempted — per the project
-policy of skipping bot-blockers rather than working around them.
+Sources flagged ``cloud_blocked`` for the ``daily`` channel in the registry
+(they 403 GitHub Actions) are left out of the default run — listed in the
+report as ``status=skipped reason=cloud_blocked``, never attempted — per the
+project policy of skipping bot-blockers rather than working around them. A
+store blocked only for the quick search still runs here.
 
 Runnable as ``python -m repuestos_radar.ingest``. ``--source SLUG``
 (repeatable) restricts the run to the named source(s) — for small targeted
@@ -76,7 +77,8 @@ class RunReport:
     sources: list[SourceReport] = field(default_factory=list)
     """Sources actually attempted, in run order."""
     skipped: list[str] = field(default_factory=list)
-    """Slugs left out of the run because they are cloud_blocked (never attempted)."""
+    """Slugs left out of the run because they are cloud_blocked for the daily
+    channel (never attempted)."""
 
     @property
     def ok(self) -> bool:
@@ -228,16 +230,16 @@ def _select_sources(
 ) -> tuple[list[Source], list[str]]:
     """(sources to run, slugs skipped as cloud_blocked).
 
-    With no explicit request, every registry source runs except the
-    cloud_blocked ones. Explicitly requested slugs always run, blocked or
-    not — that is how a blocked store is re-tested. An unknown slug is a
-    config error: better to abort at startup than to silently run a live
-    crawl against the wrong shops.
+    With no explicit request, every registry source runs except the ones
+    cloud_blocked for the daily channel. Explicitly requested slugs always
+    run, blocked or not — that is how a blocked store is re-tested. An
+    unknown slug is a config error: better to abort at startup than to
+    silently run a live crawl against the wrong shops.
     """
     if not requested:
         return (
-            [source for source in sources if not source.cloud_blocked],
-            [source.slug for source in sources if source.cloud_blocked],
+            [source for source in sources if not source.is_blocked("daily")],
+            [source.slug for source in sources if source.is_blocked("daily")],
         )
     known = [source.slug for source in sources]
     unknown = sorted(set(requested) - set(known))
