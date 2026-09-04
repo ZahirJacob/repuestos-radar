@@ -96,3 +96,18 @@ def test_demo_measures_from_central_rosario_and_never_names_the_client(demo_env,
     assert [c.value for c in at.caption] == [text_es.DEMO_LOCATION_DENIED]
     screen = " ".join(m.value for m in at.markdown) + " ".join(c.value for c in at.caption)
     assert "Activcelu" not in screen
+
+
+def test_client_app_keeps_login_and_ignores_the_language_switch(tmp_path, monkeypatch):
+    """The bypass and the toggle exist only behind the demo flag."""
+    data.cached_engine.clear()
+    monkeypatch.delenv(demo.DEMO_ENV, raising=False)
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path}/client.db")
+    monkeypatch.setenv("APP_PASSWORD", "clave-test")
+    at = AppTest.from_file(str(_ENTRY), default_timeout=15)
+    at.query_params["lang"] = "en"
+    at.run()
+    assert not at.exception
+    assert at.text_input and at.text_input[0].label == text_es.PASSWORD_LABEL
+    assert not at.segmented_control and not at.info
+    assert "lang" not in at.session_state

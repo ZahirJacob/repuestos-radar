@@ -21,6 +21,7 @@ from pathlib import Path
 from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session
 
+from repuestos_radar.clock import argentina_today
 from repuestos_radar.db import get_engine, get_session_factory, init_db
 from repuestos_radar.models import (
     KIND_PART,
@@ -31,6 +32,7 @@ from repuestos_radar.models import (
     TrackedItem,
 )
 from repuestos_radar.relevance import Relevance
+from repuestos_radar.sources import load_sources
 
 DEMO_ENV = "REPUESTOS_RADAR_DEMO"
 DAYS = 30
@@ -158,7 +160,7 @@ def engine(today: date | None = None) -> Engine:
     """The demo engine, tables created and seeded through ``today``."""
     demo_engine = get_engine(database_url())
     init_db(demo_engine)
-    refresh_if_stale(demo_engine, today or date.today())
+    refresh_if_stale(demo_engine, today or argentina_today())
     return demo_engine
 
 
@@ -178,6 +180,7 @@ def seed(session: Session, today: date) -> None:
         session.add(item)
         items[query] = item
     session.flush()
+    store_urls = {source.slug: source.url for source in load_sources()}
 
     first_day = today - timedelta(days=DAYS - 1)
     for query, _, bases, titles in _ITEMS:
@@ -186,11 +189,7 @@ def seed(session: Session, today: date) -> None:
                 walk = 1.0
                 title = titles[tier]
                 relevance = Relevance.MATCH.value
-                if (query, tier, slug, title) == _LOW_CONFIDENCE or (
-                    query,
-                    tier,
-                    slug,
-                ) == _LOW_CONFIDENCE[:3]:
+                if (query, tier, slug) == _LOW_CONFIDENCE[:3]:
                     title = _LOW_CONFIDENCE[3]
                     relevance = Relevance.LOW_CONFIDENCE.value
                 for offset in range(DAYS):
@@ -210,7 +209,7 @@ def seed(session: Session, today: date) -> None:
                             price=_price(base, factor_today, walk),
                             currency="ARS",
                             condition="new",
-                            url="https://example.com/demo",
+                            url=store_urls.get(slug, "https://example.com/demo"),
                             fetched_date=day,
                             relevance=relevance,
                             relevance_score=1.0 if relevance == "match" else 0.7,

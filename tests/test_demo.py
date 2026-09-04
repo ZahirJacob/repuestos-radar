@@ -58,10 +58,10 @@ def test_seed_covers_every_item_with_thirty_days_ending_today(seeded):
 
 def test_seed_uses_only_registered_stores_and_labeled_tiers(seeded):
     _, factory = seeded
-    slugs = {source.slug for source in load_sources()}
+    urls = {source.slug: source.url for source in load_sources()}
     with factory() as session:
         for listing in session.scalars(select(Listing)):
-            assert listing.source_slug in slugs
+            assert listing.url == urls[listing.source_slug]  # links go to the real store
         for item in session.scalars(select(TrackedItem)):
             analyses = analyze_item(listings_for_day(session, item.id, TODAY))
             bases = next(b for q, _, b, _ in demo._ITEMS if q == item.query)

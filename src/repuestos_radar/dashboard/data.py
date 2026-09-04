@@ -8,6 +8,7 @@ from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 
 from repuestos_radar.analysis import analyze_item, listings_for_day
+from repuestos_radar.clock import argentina_today
 from repuestos_radar.dashboard import demo
 from repuestos_radar.db import get_engine, get_session_factory, init_db
 from repuestos_radar.models import Listing
@@ -25,7 +26,7 @@ def cached_engine() -> Engine:
 def open_session() -> Session:
     engine = cached_engine()
     if demo.is_demo():
-        demo.refresh_if_stale(engine, date.today())
+        demo.refresh_if_stale(engine, argentina_today())
     return get_session_factory(engine)()
 
 
