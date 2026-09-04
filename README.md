@@ -283,6 +283,18 @@ red blips flash as the line passes them, plus a status line with the number of s
 from the cloud. Every page title carries the same radar as a small logo; motion stops under
 `prefers-reduced-motion`.
 
+The login is hardened for a public URL. Wrong passwords are throttled process-wide: after three
+in ten minutes, every further wrong attempt (from any session) waits 2, 4, 8 … seconds, capped at
+30, so a guesser is slowed down without ever locking the shop out; a correct password never waits.
+A correct password sets a 30-day
+"remember me" cookie (`secure`, `SameSite=Strict`) holding an expiry and an HMAC; the signing key
+is derived with a slow KDF (PBKDF2, 600k rounds) of the password plus the optional
+`APP_COOKIE_SECRET`, so a copied cookie is not an offline password-cracking oracle. Changing the
+password or the secret logs every device out; the sidebar's "Salir" button logs out just this one.
+`.streamlit/config.toml` keeps tracebacks out of the browser (`showErrorDetails = "type"`: the
+client sees the exception type, the server log keeps the message), hides the deploy/fork toolbar,
+and turns off usage telemetry.
+
 The app's colors live in `.streamlit/config.toml`: a light and a dark theme built on the radar's
 green. The app follows the phone's setting, and the theme can be switched by hand from the app
 menu. The radar itself keeps its own palette in both themes. On the detail page, "Usar mi
@@ -296,6 +308,10 @@ uv sync --extra dashboard
 DATABASE_URL=... APP_PASSWORD=... uv run streamlit run streamlit_app.py
 ```
 
+The remember-me cookie is `secure`, so over plain HTTP it only survives on `localhost` (Chrome and
+Firefox treat it as a secure context; Safari does not). Opening a local run from a phone over the
+LAN (`http://192.168.x.x:8501`) still logs in, it just asks for the password on every visit.
+
 In production the app runs on Streamlit Community Cloud, deployed from `main`. Its configuration
 lives in the app's secrets (app settings → Secrets in the Streamlit Cloud UI) — never committed to
 the repo:
@@ -304,6 +320,7 @@ the repo:
 | -------------- | -------------------------------------------------------------------------- |
 | `DATABASE_URL` | Postgres connection string — the same database the daily ingestion writes. |
 | `APP_PASSWORD` | The shared password the whole app sits behind.                             |
+| `APP_COOKIE_SECRET` | Optional long random string mixed into the remember-me cookie signature (see above). Generate one with `python -c "import secrets; print(secrets.token_urlsafe(32))"`. |
 | `SHOP_LAT`     | Shop latitude — the default reference point for distances.                 |
 | `SHOP_LON`     | Shop longitude — kept out of the public repo together with `SHOP_LAT`.     |
 

@@ -12,15 +12,32 @@ from repuestos_radar.sources import CLOUD_CHANNELS, load_sources
 
 _COOKIE_NAME = "repuestos_radar_session"
 
+# One throttle per server process: the guessing brake has to see every
+# session's failed attempts, not just the current one's.
+_THROTTLE = auth.LoginThrottle()
 
-def _expected_password() -> str | None:
+
+def _setting(name: str) -> str | None:
     # Streamlit secrets first (cloud), environment second (local/.env, tests).
     try:
-        if "APP_PASSWORD" in st.secrets:
-            return st.secrets["APP_PASSWORD"]
+        if name in st.secrets:
+            return st.secrets[name]
     except Exception:  # no secrets.toml configured — normal outside the cloud
         pass
-    return os.environ.get("APP_PASSWORD")
+    return os.environ.get(name)
+
+
+def _expected_password() -> str | None:
+    return _setting("APP_PASSWORD")
+
+
+def _cookie_secret() -> str:
+    """Server-side half of the remember-me signing key (see auth.py).
+
+    Optional: without it the token is still signed with a slow KDF of the
+    password; with it a copied cookie cannot be cracked at all.
+    """
+    return _setting("APP_COOKIE_SECRET") or ""
 
 
 def _cookie_controller():
@@ -53,7 +70,34 @@ def _write_cookie(controller, password: str) -> None:
     if not controller:
         return
     with contextlib.suppress(Exception):
-        controller.set(_COOKIE_NAME, auth.make_token(password), max_age=auth.TOKEN_TTL_SECONDS)
+        # secure=True: never over plain HTTP (localhost counts as secure in
+        # browsers, so local runs keep working). The component's default
+        # same_site="strict" stands. HttpOnly is out of reach — the component
+        # writes the cookie from JavaScript — which is why the token itself
+        # must be worthless offline (see auth.py).
+        controller.set(
+            _COOKIE_NAME,
+            auth.make_token(password, secret=_cookie_secret()),
+            max_age=auth.TOKEN_TTL_SECONDS,
+            secure=True,
+        )
+
+
+def _clear_cookie(controller) -> None:
+    if not controller:
+        return
+    with contextlib.suppress(Exception):
+        controller.remove(_COOKIE_NAME)
+
+
+def _logout(controller) -> None:
+    st.session_state.pop("authed", None)
+    # The component removes the cookie from JavaScript, asynchronously; on
+    # the very next rerun the old value can still be read back. This flag
+    # keeps the session on the login form until a password is typed again.
+    st.session_state["logged_out"] = True
+    _clear_cookie(controller)
+    st.rerun()
 
 
 def _count_reachable_sources(loader=load_sources) -> int | None:
@@ -98,8 +142,8 @@ def _require_login() -> None:
     if st.session_state.get("authed"):
         return
     controller = _cookie_controller()
-    token = _read_cookie(controller)
-    if isinstance(token, str) and auth.token_valid(password, token):
+    token = None if st.session_state.get("logged_out") else _read_cookie(controller)
+    if isinstance(token, str) and auth.token_valid(password, token, secret=_cookie_secret()):
         st.session_state["authed"] = True
         return
     radar.render_login_panel(login_status_line(_radar_store_count()))
@@ -109,12 +153,19 @@ def _require_login() -> None:
         entered = st.text_input(t.PASSWORD_LABEL, type="password", autocomplete="current-password")
         submitted = st.form_submit_button(t.LOGIN_BUTTON, use_container_width=True)
     if submitted:
+        # Check first, wait only on a wrong password: the shop typing the
+        # right one never queues behind a guesser (see auth.LoginThrottle).
         if auth.check_password(entered, password):
+            _THROTTLE.record(ok=True)
             st.session_state["authed"] = True
+            st.session_state.pop("logged_out", None)
             _write_cookie(controller, password)
             st.rerun()
-        else:
-            st.error(t.WRONG_PASSWORD)
+        _THROTTLE.wait()
+        _THROTTLE.record(ok=False)
+        st.error(t.WRONG_PASSWORD)
+        if _THROTTLE.delay_seconds() > 0:
+            st.error(t.LOGIN_THROTTLED)
     st.stop()
 
 
@@ -179,3 +230,5 @@ def main() -> None:
         _render_demo_banner()
     st.navigation(_build_pages()).run()
     _freshness_footer()
+    if not demo.is_demo() and st.sidebar.button(t.LOGOUT_BUTTON, use_container_width=True):
+        _logout(_cookie_controller())

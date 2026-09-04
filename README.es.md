@@ -310,6 +310,20 @@ pasa por ellos, más una línea de estado con la cantidad de tiendas alcanzables
 título de cada página lleva el mismo radar como logo chico; la animación se detiene con
 `prefers-reduced-motion`.
 
+El ingreso está reforzado para vivir en una URL pública. Las contraseñas incorrectas se frenan a
+nivel de proceso: después de tres en diez minutos, cada intento incorrecto siguiente (desde
+cualquier sesión) espera 2, 4, 8 … segundos, con un tope de 30; así, quien intente adivinarla
+avanza cada vez más lento, sin que el local quede bloqueado nunca, y la contraseña correcta nunca
+espera. Una contraseña correcta deja una cookie de
+"recordarme" por 30 días (`secure`, `SameSite=Strict`) con un vencimiento y un HMAC; la clave de
+firma se deriva con un KDF lento (PBKDF2, 600k rondas) de la contraseña más el
+`APP_COOKIE_SECRET` opcional, así una cookie copiada no sirve para adivinar la contraseña por
+fuera del servidor. Cambiar la contraseña o el secret cierra la sesión en todos los dispositivos;
+el botón "Salir" de la barra lateral la cierra solo en ese dispositivo.
+`.streamlit/config.toml` mantiene los tracebacks fuera del navegador (`showErrorDetails =
+"type"`: el cliente ve solo el tipo de excepción, el log del servidor guarda el mensaje), oculta
+la barra de deploy/fork y apaga la telemetría de uso.
+
 Los colores de la app viven en `.streamlit/config.toml`: un tema claro y uno oscuro construidos
 sobre el verde del radar. La app sigue la configuración del celular, y el tema se puede cambiar a
 mano desde el menú de la app. El radar conserva su propia paleta en los dos temas. En la página de
@@ -324,6 +338,11 @@ uv sync --extra dashboard
 DATABASE_URL=... APP_PASSWORD=... uv run streamlit run streamlit_app.py
 ```
 
+La cookie de "recordarme" es `secure`, así que por HTTP plano solo sobrevive en `localhost`
+(Chrome y Firefox lo tratan como contexto seguro; Safari no). Abrir una corrida local desde el
+celular por la red local (`http://192.168.x.x:8501`) igual deja entrar, solo que pide la
+contraseña en cada visita.
+
 En producción la app corre en Streamlit Community Cloud, desplegada desde `main`. Su configuración
 vive en los secrets de la app (configuración de la app → Secrets en la interfaz de Streamlit
 Cloud) — nunca se commitea al repo:
@@ -332,6 +351,7 @@ Cloud) — nunca se commitea al repo:
 | -------------- | ----------------------------------------------------------------------------------- |
 | `DATABASE_URL` | Cadena de conexión de Postgres — la misma base en la que escribe la ingesta diaria. |
 | `APP_PASSWORD` | La contraseña compartida detrás de la que está toda la app.                         |
+| `APP_COOKIE_SECRET` | Opcional: una cadena larga aleatoria que se mezcla en la firma de la cookie de "recordarme" (ver arriba). Se genera con `python -c "import secrets; print(secrets.token_urlsafe(32))"`. |
 | `SHOP_LAT`     | Latitud del local — el punto de referencia por defecto para las distancias.         |
 | `SHOP_LON`     | Longitud del local — se mantiene fuera del repo público junto con `SHOP_LAT`.       |
 

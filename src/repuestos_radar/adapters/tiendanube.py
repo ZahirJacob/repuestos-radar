@@ -38,10 +38,12 @@ way; SKUs are preferred because a store can re-slug a product page).
 """
 
 import gzip
+import io
 import json
 import logging
 import re
 import time
+import zlib
 from collections.abc import Callable
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -50,7 +52,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from repuestos_radar.adapters.base import AdapterError
-from repuestos_radar.adapters.politeness import PoliteHttpClient
+from repuestos_radar.adapters.politeness import MAX_RESPONSE_BYTES, PoliteHttpClient
 from repuestos_radar.relevance import normalize
 from repuestos_radar.schema import Condition, NormalizedListing
 from repuestos_radar.sources import Source
@@ -63,6 +65,20 @@ courtesy delay); a source's ``max_catalog_pages`` overrides it."""
 
 _MAX_CANDIDATES = 100
 """Cap on discovered category candidates, defensive against pathological sitemaps."""
+
+MAX_SITEMAP_BYTES = MAX_RESPONSE_BYTES
+"""Cap on a sitemap's INFLATED size. The polite client caps what comes over
+the wire, but a .xml.gz sitemap is inflated here, and a few KB of gzip can
+inflate to gigabytes; past this the sitemap is skipped (homepage fallback)."""
+
+
+def _gunzip_bounded(data: bytes, limit: int) -> bytes | None:
+    """Inflate gzip ``data``, or None when the result would exceed ``limit``
+    bytes — without ever holding more than ``limit`` + 1 bytes of output."""
+    with gzip.GzipFile(fileobj=io.BytesIO(data)) as inflater:
+        inflated = inflater.read(limit + 1)
+    return None if len(inflated) > limit else inflated
+
 
 _LD_JSON_RE = re.compile(
     r"<script[^>]*type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
@@ -261,9 +277,23 @@ class TiendanubeAdapter:
         if response.status_code != 200:
             return set()
         try:
-            xml = gzip.decompress(response.content).decode("utf-8", errors="replace")
-        except (gzip.BadGzipFile, OSError):
-            xml = response.text  # served un-gzipped (or transport-decompressed)
+            inflated = _gunzip_bounded(response.content, MAX_SITEMAP_BYTES)
+        except (gzip.BadGzipFile, OSError, EOFError, zlib.error):
+            # Not gzip (served plain, or transport-decompressed), truncated,
+            # or a gzip header over corrupt deflate data (zlib.error is not
+            # an OSError). Parse whatever text came back; a broken sitemap
+            # is not a source failure.
+            xml = response.text
+        else:
+            if inflated is None:
+                logger.warning(
+                    "%s: sitemap %s is too large once inflated (over %d bytes); skipping it",
+                    self.source.slug,
+                    sitemap_url,
+                    MAX_SITEMAP_BYTES,
+                )
+                return set()
+            xml = inflated.decode("utf-8", errors="replace")
         return {url for url in _LOC_RE.findall(xml) if self._is_category_candidate(url)}
 
     def _categories_from_homepage(self) -> set[str]:

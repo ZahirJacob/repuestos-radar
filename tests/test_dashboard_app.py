@@ -17,6 +17,16 @@ from repuestos_radar.sources import CLOUD_CHANNELS, Source, load_sources
 _ENTRY_SCRIPT = Path(__file__).resolve().parent.parent / "streamlit_app.py"
 
 
+@pytest.fixture(autouse=True)
+def _no_real_login_delays(monkeypatch):
+    """The login throttle is process-global: wrong passwords typed by one test
+    would make a later test in the same process really sleep. Every test gets
+    a fresh, non-sleeping throttle."""
+    from repuestos_radar.dashboard import auth
+
+    monkeypatch.setattr(dashboard_app, "_THROTTLE", auth.LoginThrottle(sleep=lambda _s: None))
+
+
 @pytest.fixture()
 def seeded_db(tmp_path, monkeypatch):
     # cached_engine() is @st.cache_resource'd (no args) so its cache is
@@ -242,3 +252,92 @@ def test_home_card_says_no_data_today_for_empty_item(seeded_db, monkeypatch):
     at = _login(_app(seeded_db).run())
     body = _body(at)
     assert "sin datos de hoy" in body
+
+
+class _RecordingCookieController:
+    """Stub that remembers what the app asked the cookie component to do."""
+
+    def __init__(self):
+        self.store: dict[str, str] = {}
+        self.set_calls: list[dict] = []
+        self.removed: list[str] = []
+
+    def get(self, name):
+        return self.store.get(name)
+
+    def set(self, name, value, **options):
+        self.set_calls.append({"name": name, "value": value, **options})
+        self.store[name] = value
+
+    def remove(self, name):
+        self.removed.append(name)
+        self.store.pop(name, None)
+
+
+def test_remember_me_cookie_is_secure_and_signed_with_the_cookie_secret(seeded_db, monkeypatch):
+    from repuestos_radar.dashboard import auth
+
+    monkeypatch.setenv("APP_COOKIE_SECRET", "cookie-secret-test")
+    controller = _RecordingCookieController()
+    monkeypatch.setattr(dashboard_app, "_cookie_controller", lambda: controller)
+
+    at = _login(_app(seeded_db).run())
+    assert at.session_state["authed"] is True
+    (call,) = controller.set_calls
+    assert call["secure"] is True
+    assert auth.token_valid("clave-test", call["value"], secret="cookie-secret-test")
+    assert not auth.token_valid("clave-test", call["value"])  # the secret is part of the key
+
+
+def test_logout_button_clears_session_and_cookie(seeded_db, monkeypatch):
+    controller = _RecordingCookieController()
+    monkeypatch.setattr(dashboard_app, "_cookie_controller", lambda: controller)
+
+    at = _login(_app(seeded_db).run())
+    logout = [b for b in at.sidebar.button if b.label == "Salir"]
+    assert len(logout) == 1
+    logout[0].click().run()
+    assert "authed" not in at.session_state or not at.session_state["authed"]
+    assert controller.removed == ["repuestos_radar_session"]
+    assert at.text_input  # back on the login form
+
+
+class _StickyCookieController(_RecordingCookieController):
+    """The real component removes the cookie from JavaScript, asynchronously:
+    on the rerun right after "Salir" the old cookie can still be read back."""
+
+    def remove(self, name):
+        self.removed.append(name)  # ...but the value lingers
+
+
+def test_logout_holds_even_if_the_cookie_lingers_for_a_rerun(seeded_db, monkeypatch):
+    controller = _StickyCookieController()
+    monkeypatch.setattr(dashboard_app, "_cookie_controller", lambda: controller)
+
+    at = _login(_app(seeded_db).run())
+    assert controller.store  # the remember-me cookie was written
+    [logout] = [b for b in at.sidebar.button if b.label == "Salir"]
+    logout.click().run()
+    at.run()  # one more rerun, cookie still present: must NOT log back in
+    assert "authed" not in at.session_state or not at.session_state["authed"]
+    assert at.text_input
+    # Typing the password again works and the session is a normal one afterwards.
+    at.text_input[0].set_value("clave-test").run()
+    at.button[0].set_value(True).run()
+    assert at.session_state["authed"] is True
+
+
+def test_login_attempts_are_throttled_process_wide(seeded_db, monkeypatch):
+    from repuestos_radar.dashboard import auth
+
+    slept: list[float] = []
+    fresh = auth.LoginThrottle(sleep=slept.append)
+    monkeypatch.setattr(dashboard_app, "_THROTTLE", fresh)
+
+    at = _app(seeded_db).run()
+    for _ in range(4):
+        at.text_input[0].set_value("wrong").run()
+        at.button[0].set_value(True).run()
+    assert slept == [0, 0, 0, 2]
+    assert any("Esperá" in e.value for e in at.error)  # the throttled note is shown
+    assert "authed" not in at.session_state or not at.session_state["authed"]
