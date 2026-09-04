@@ -1,0 +1,21 @@
+# Keeps the pinned third-party actions and the uv lock file current. Both
+# workflows pin actions to full commit SHAs (the ingest job holds the
+# production DATABASE_URL), so a bump arrives as a reviewable PR that moves
+# the SHA and its version comment together.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies"]
+
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies"]
+    # One PR per week for the whole lock file, not one per package.
+    groups:
+      python-dependencies:
+        patterns: ["*"]
