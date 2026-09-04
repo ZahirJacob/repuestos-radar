@@ -283,6 +283,17 @@ red blips flash as the line passes them, plus a status line with the number of s
 from the cloud. Every page title carries the same radar as a small logo; motion stops under
 `prefers-reduced-motion`.
 
+The login is hardened for a public URL. Wrong passwords are throttled process-wide: after three
+in ten minutes, every further attempt (from any session) waits 2, 4, 8 … seconds, capped at 30,
+so a guesser is slowed down without ever locking the shop out. A correct password sets a 30-day
+"remember me" cookie (`secure`, `SameSite=Strict`) holding an expiry and an HMAC; the signing key
+comes out of a slow KDF (PBKDF2, 600k rounds) of the password plus the optional
+`APP_COOKIE_SECRET`, so a copied cookie is not an offline password-cracking oracle. Changing the
+password or the secret logs every device out; the sidebar's "Salir" button logs out just this one.
+`.streamlit/config.toml` keeps tracebacks out of the browser (`showErrorDetails = "type"`: the
+client sees the exception type, the server log keeps the message), hides the deploy/fork toolbar,
+and turns off usage telemetry.
+
 The app's colors live in `.streamlit/config.toml`: a light and a dark theme built on the radar's
 green. The app follows the phone's setting, and the theme can be switched by hand from the app
 menu. The radar itself keeps its own palette in both themes. On the detail page, "Usar mi
@@ -304,6 +315,7 @@ the repo:
 | -------------- | -------------------------------------------------------------------------- |
 | `DATABASE_URL` | Postgres connection string — the same database the daily ingestion writes. |
 | `APP_PASSWORD` | The shared password the whole app sits behind.                             |
+| `APP_COOKIE_SECRET` | Optional long random string mixed into the remember-me cookie signature (see above). Generate one with `python -c "import secrets; print(secrets.token_urlsafe(32))"`. |
 | `SHOP_LAT`     | Shop latitude — the default reference point for distances.                 |
 | `SHOP_LON`     | Shop longitude — kept out of the public repo together with `SHOP_LAT`.     |
 
