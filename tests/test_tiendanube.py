@@ -301,6 +301,25 @@ def test_homepage_fallback_when_no_sitemap_is_advertised() -> None:
     assert not any(r.url.path.startswith("/productos") for r in store.requests)
 
 
+def test_sitemap_that_inflates_past_the_cap_is_skipped_not_inflated(monkeypatch, caplog) -> None:
+    """A gzip bomb served as the sitemap: the wire size passes the client's
+    cap, so the decompression itself must be bounded. The sitemap is dropped
+    with a warning and the crawl falls back to the homepage categories."""
+    store = two_page_store()
+    store.sitemap = gzip.compress(b"0" * 200_000)  # ~200 bytes on the wire
+    monkeypatch.setattr(repuestos_radar.adapters.tiendanube, "MAX_SITEMAP_BYTES", 100_000)
+
+    with caplog.at_level(logging.WARNING):
+        listings = make_adapter(store).fetch("modulo")
+
+    assert "sitemap" in caplog.text and "too large" in caplog.text
+    assert [listing.external_id for listing in listings] == [
+        "MD-E13-SM",
+        "modulo-motorola-g8-power",
+    ]
+    assert len(store.category_requests("/")) >= 1  # homepage fallback ran
+
+
 # --- per-source crawl tuning -------------------------------------------------
 
 MULTI_CAT_LOCS = [
