@@ -66,6 +66,10 @@ courtesy delay); a source's ``max_catalog_pages`` overrides it."""
 _MAX_CANDIDATES = 100
 """Cap on discovered category candidates, defensive against pathological sitemaps."""
 
+MAX_SITEMAPS = 5
+"""Sitemap files fetched per crawl, in robots.txt order (a Tiendanube store
+advertises one or two; the platform CDN hosts them, so no host check here)."""
+
 MAX_SITEMAP_BYTES = MAX_RESPONSE_BYTES
 """Cap on a sitemap's INFLATED size. The polite client caps what comes over
 the wire, but a .xml.gz sitemap is inflated here, and a few KB of gzip can
@@ -266,9 +270,21 @@ class TiendanubeAdapter:
         # Sitemap URLs come from the client's cached robots.txt parse, so
         # robots.txt is fetched exactly once per crawl.
         candidates: set[str] = set()
+        fetched = 0
         for sitemap_url in self._http.site_maps():
-            if "blog" in sitemap_url:
+            # robots.txt is third-party text: a Sitemap line can name any
+            # scheme (ftp:, file:) or list hundreds of files. Only web URLs
+            # reach the HTTP client, and only the first MAX_SITEMAPS of them.
+            if "blog" in sitemap_url or urlsplit(sitemap_url).scheme not in ("http", "https"):
                 continue
+            if fetched >= MAX_SITEMAPS:
+                logger.warning(
+                    "%s: robots.txt advertises more than %d sitemaps; ignoring the rest",
+                    self.source.slug,
+                    MAX_SITEMAPS,
+                )
+                break
+            fetched += 1
             candidates |= self._category_locs(sitemap_url)
         return candidates
 

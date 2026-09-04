@@ -4,6 +4,7 @@ import math
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
+from urllib.parse import quote
 
 import altair as alt
 import pandas as pd
@@ -270,6 +271,21 @@ def _reference_point() -> tuple[float, float] | None:
     return current or shop
 
 
+def _store_link(name: str, url: str) -> str:
+    """``[name](url)`` for a web URL, plain ``name`` for anything else.
+
+    Listing URLs come from the stores' own JSON. New rows are validated on
+    ingest (schema.py), but rows stored before that existed are still shown,
+    so a non-http(s) value renders as text rather than a tappable link.
+    Markdown-breaking characters (``)``, spaces) are percent-encoded so a
+    store's URL cannot cut the link short; ``%`` stays as-is so an already
+    encoded URL is not double-encoded.
+    """
+    if not url.lower().startswith(("http://", "https://")):
+        return name
+    return f"[{name}]({quote(url, safe=":/?#[]@!$&'*+,;=%~-._")})"
+
+
 def _offer_line(offer: StoreOffer, names: dict[str, str], distance_text: str | None) -> str:
     """One store offer as a markdown block: price first and big, then the
     store link with the distance and any warnings as pills on the same line.
@@ -279,7 +295,7 @@ def _offer_line(offer: StoreOffer, names: dict[str, str], distance_text: str | N
     come apart exactly where the client reads it.
     """
     name = names.get(offer.source_slug, offer.source_slug)
-    parts = [f"[{name}]({offer.url})"]
+    parts = [_store_link(name, offer.url)]
     if distance_text is not None:
         parts.append(distance_pill(distance_text))
     # Non-breaking space after the marker, same reason as in distance_pill.

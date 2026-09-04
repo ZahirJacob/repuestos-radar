@@ -40,6 +40,34 @@ def test_offer_line_plain_match():
     assert "⚠" not in line  # no warning marker for a plain match
 
 
+def _offer(url: str) -> StoreOffer:
+    return StoreOffer(
+        source_slug="celuphone",
+        title="x",
+        price=Decimal("9000"),
+        url=url,
+        relevance="match",
+        tier="incell",
+    )
+
+
+def test_offer_line_escapes_markdown_breaking_characters_in_the_url():
+    """A ')' or a space in a store URL must not end the markdown link early."""
+    line = detail._offer_line(
+        _offer("https://celuphone.com.ar/p/modulo (a32) v2"), names={}, distance_text=None
+    )
+    assert "[celuphone](https://celuphone.com.ar/p/modulo%20%28a32%29%20v2)" in line
+
+
+def test_offer_line_never_links_a_non_web_url():
+    """Rows stored before URL validation existed (or a bad migration) must
+    render as plain text, never as a tappable javascript:/data: link."""
+    for url in ("javascript:alert(1)", "data:text/html,hi", "", "p/1"):
+        line = detail._offer_line(_offer(url), names={}, distance_text=None)
+        assert "](" not in line, url
+        assert "celuphone" in line
+
+
 def test_offer_line_low_confidence_and_outlier_warn():
     offer = StoreOffer(
         source_slug="novocell",

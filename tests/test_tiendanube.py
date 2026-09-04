@@ -320,6 +320,34 @@ def test_sitemap_that_inflates_past_the_cap_is_skipped_not_inflated(monkeypatch,
     assert len(store.category_requests("/")) >= 1  # homepage fallback ran
 
 
+def test_only_web_sitemaps_are_fetched_and_only_a_few_of_them() -> None:
+    """robots.txt is third-party text: a Sitemap line can name any scheme or
+    host, and can list hundreds of files. Non-http(s) entries are ignored
+    (never handed to the HTTP client) and at most MAX_SITEMAPS are fetched."""
+    extra = "\n".join(
+        f"Sitemap: https://cdn.example.com/stores/001/extra-{n}.xml.gz" for n in range(10)
+    )
+    robots = (
+        "User-agent: *\nDisallow: /search/\n\n"
+        "Sitemap: ftp://cdn.example.com/stores/001/sitemap.xml.gz\n"
+        "Sitemap: file:///etc/passwd\n"
+        f"Sitemap: {CDN_SITEMAP_URL}\n{extra}\n"
+    )
+    store = two_page_store(robots=robots)
+
+    listings = make_adapter(store).fetch("modulo")
+
+    assert [listing.external_id for listing in listings] == [
+        "MD-E13-SM",
+        "modulo-motorola-g8-power",
+    ]
+    schemes = {r.url.scheme for r in store.requests}
+    assert schemes == {"https"}
+    cdn_fetches = [r for r in store.requests if r.url.host == "cdn.example.com"]
+    assert len(cdn_fetches) == repuestos_radar.adapters.tiendanube.MAX_SITEMAPS
+    assert any(str(r.url) == CDN_SITEMAP_URL for r in cdn_fetches)  # the real one came first
+
+
 def test_sitemap_with_corrupt_deflate_data_falls_back_to_the_homepage() -> None:
     """A valid gzip header over garbage raises zlib.error, not BadGzipFile:
     that is a broken sitemap, not a source failure."""
