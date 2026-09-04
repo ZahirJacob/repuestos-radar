@@ -6,6 +6,7 @@ URL instead.
 """
 
 import os
+from urllib.parse import parse_qs, urlsplit
 
 from dotenv import load_dotenv
 from sqlalchemy import Engine, create_engine, event, inspect, text
@@ -37,12 +38,32 @@ def get_engine(database_url: str | None = None) -> Engine:
     # Neon suspends the database after a few idle minutes and drops its
     # connections. Without the ping the pool hands back a dead connection and
     # the first query after a pause fails with OperationalError.
-    engine = create_engine(database_url, pool_pre_ping=True)
+    kwargs: dict = {"pool_pre_ping": True}
+    tls = _tls_connect_args(database_url)
+    if tls:
+        kwargs["connect_args"] = tls
+    engine = create_engine(database_url, **kwargs)
     if engine.dialect.name == "sqlite":
         # SQLite ships with FK enforcement off; turn it on per connection so
         # dev/tests behave like postgres.
         event.listen(engine, "connect", _enable_sqlite_foreign_keys)
     return engine
+
+
+def _tls_connect_args(database_url: str) -> dict[str, str]:
+    """``sslmode=require`` for a Postgres URL that does not set sslmode itself.
+
+    The hosted database (Neon) already refuses plaintext, but the credentials
+    must never travel in the clear even if someone pastes a URL without the
+    query string. An explicit ``sslmode`` in the URL is respected (a local
+    Postgres in a container may legitimately say ``disable``). Non-Postgres
+    URLs (SQLite in tests and the demo) get nothing.
+    """
+    if not database_url.startswith("postgresql"):
+        return {}
+    if "sslmode" in parse_qs(urlsplit(database_url).query, keep_blank_values=True):
+        return {}
+    return {"sslmode": "require"}
 
 
 def get_session_factory(engine: Engine) -> sessionmaker[Session]:

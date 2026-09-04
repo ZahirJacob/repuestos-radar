@@ -54,6 +54,29 @@ def test_postgres_engine_pre_pings_pooled_connections() -> None:
     engine.dispose()
 
 
+def test_postgres_connections_require_tls_unless_the_url_says_otherwise(monkeypatch) -> None:
+    """Neon needs TLS anyway, but the code must not depend on the URL
+    remembering to say so: a plain URL gets sslmode=require; an explicit
+    sslmode in the URL wins; SQLite gets nothing."""
+    captured: list[dict] = []
+    real_create_engine = db_module.create_engine
+
+    def spy(url, **kwargs):
+        captured.append(kwargs)
+        return real_create_engine(url, **kwargs)
+
+    monkeypatch.setattr(db_module, "create_engine", spy)
+
+    get_engine("postgresql://user:secret@db.example.neon.tech/radar").dispose()
+    get_engine("postgresql://user:secret@db.example.neon.tech/radar?sslmode=disable").dispose()
+    get_engine(SQLITE_URL).dispose()
+
+    plain, explicit, sqlite = captured
+    assert plain["connect_args"] == {"sslmode": "require"}
+    assert "connect_args" not in explicit
+    assert "connect_args" not in sqlite
+
+
 def test_explicit_psycopg_url_passes_through_unchanged() -> None:
     engine = get_engine("postgresql+psycopg://user:secret@db.example.neon.tech/radar")
     assert engine.url.drivername == "postgresql+psycopg"
