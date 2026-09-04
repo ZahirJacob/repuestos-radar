@@ -53,5 +53,21 @@ def test_required_text_fields_must_be_non_empty(field: str, empty: str) -> None:
         make_listing(**{field: empty})
 
 
+@pytest.mark.parametrize(
+    "bad_url",
+    ["javascript:alert(1)", "ftp://shop.example/p/1", "//shop.example/p/1", "", "   ", "p/1"],
+)
+def test_url_must_be_http_or_https(bad_url: str) -> None:
+    """A listing URL ends up as a link the client taps; only web URLs are
+    accepted, whatever a store's JSON says."""
+    with pytest.raises(ValueError, match="url"):
+        make_listing(url=bad_url)
+
+
+def test_http_and_https_urls_are_accepted() -> None:
+    assert make_listing(url="http://shop.example/p/1").url == "http://shop.example/p/1"
+    assert make_listing(url="HTTPS://shop.example/p/1").url == "HTTPS://shop.example/p/1"
+
+
 def test_condition_enum_members() -> None:
     assert {c.value for c in Condition} == {"new", "used", "refurbished", "unknown"}

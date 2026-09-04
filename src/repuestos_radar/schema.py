@@ -42,3 +42,8 @@ class NormalizedListing:
                 raise ValueError(f"{field_name} must be non-empty")
         if self.price <= 0:
             raise ValueError(f"price must be positive, got {self.price}")
+        # The URL becomes a link the client taps on the dashboard: only web
+        # URLs, whatever a store's JSON happens to say. Malformed -> the
+        # adapter's usual "skip malformed product" path (ValueError).
+        if not self.url.lower().startswith(("http://", "https://")):
+            raise ValueError(f"url must be an http(s) URL, got {self.url!r}")
