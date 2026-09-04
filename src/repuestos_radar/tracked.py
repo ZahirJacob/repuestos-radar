@@ -10,6 +10,7 @@ page; this CLI is the scriptable route over the same helpers:
     python -m repuestos_radar.tracked pause 3
     python -m repuestos_radar.tracked resume 3
     python -m repuestos_radar.tracked kind 3 phone
+    python -m repuestos_radar.tracked reclassify [ID ...] [--dry-run]
 
 Items are paused, never deleted: a paused item keeps its price history and is
 simply skipped by the ingestion runner. ``add`` on an already-tracked query
@@ -19,19 +20,26 @@ left alone (use ``kind`` to change it).
 Every item has a kind, ``part`` (default) or ``phone``: for a phone the
 relevance filter rejects listings that are spare parts for that phone.
 
+``reclassify`` re-runs the relevance filter over the listings already stored
+for an item (all items by default) and rewrites the stale labels — the daily
+snapshot is otherwise immutable, so this is the one way a rule change (a new
+part word, an item switched to ``phone``) reaches the history.
+
 Same database contract as the ingestion runner: ``DATABASE_URL`` from the
 environment (or ``.env``), tables created at startup if missing.
 """
 
 import argparse
 import sys
+from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from repuestos_radar.db import get_engine, get_session_factory, init_db
-from repuestos_radar.models import KIND_PART, TRACKED_KINDS, TrackedItem
+from repuestos_radar.models import KIND_PART, TRACKED_KINDS, Listing, TrackedItem
+from repuestos_radar.relevance import classify
 
 ADDED = "added"
 REACTIVATED = "reactivated"
@@ -104,6 +112,49 @@ def set_kind(session: Session, item_id: int, kind: str) -> tuple[TrackedItem | N
     return item, CHANGED
 
 
+@dataclass(frozen=True)
+class ReclassifyReport:
+    """One item's ``reclassify`` outcome: rows looked at, rows whose label changed."""
+
+    item: TrackedItem
+    rows: int
+    changed: int
+
+
+def reclassify_items(session: Session, item_ids: list[int] | None) -> list[ReclassifyReport]:
+    """Re-run ``classify`` over every stored listing of the given items.
+
+    ``item_ids`` of None means every tracked item (paused ones included: their
+    history is still shown). Labels and scores are rewritten in place where
+    they differ from what the current rules say; the caller owns the commit.
+    Raises ValueError when an id does not exist (nothing is touched then).
+    """
+    if item_ids is None:
+        items = list(session.scalars(select(TrackedItem).order_by(TrackedItem.id)))
+    else:
+        items = []
+        for item_id in dict.fromkeys(item_ids):  # dedupe, keep order
+            item = session.get(TrackedItem, item_id)
+            if item is None:
+                raise ValueError(f"no tracked item with id {item_id}")
+            items.append(item)
+
+    reports: list[ReclassifyReport] = []
+    for item in items:
+        rows = session.scalars(select(Listing).where(Listing.tracked_item_id == item.id))
+        seen = changed = 0
+        for row in rows:
+            seen += 1
+            result = classify(item.query, row.title, kind=item.kind)
+            label = result.relevance.value
+            if row.relevance != label or row.relevance_score != result.score:
+                row.relevance = label
+                row.relevance_score = result.score
+                changed += 1
+        reports.append(ReclassifyReport(item=item, rows=seen, changed=changed))
+    return reports
+
+
 def _describe(item: TrackedItem) -> str:
     # Double quotes in the query are swapped for single so the key=value line
     # stays parseable (same convention as the ingestion run report).
@@ -163,6 +214,22 @@ def _cmd_set_kind(session: Session, args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_reclassify(session: Session, args: argparse.Namespace) -> int:
+    try:
+        reports = reclassify_items(session, args.ids or None)
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 1
+    if args.dry_run:
+        session.rollback()
+    else:
+        session.commit()
+    for report in reports:
+        verb = "dry run — would rewrite" if args.dry_run else "rewrote"
+        print(f"{verb} {report.changed} of {report.rows} rows: {_describe(report.item)}")
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m repuestos_radar.tracked",
@@ -196,6 +263,18 @@ def _build_parser() -> argparse.ArgumentParser:
     resume = subparsers.add_parser("resume", help="reactivate a paused item")
     resume.add_argument("id", type=int, help="the item id shown by 'list'")
     resume.set_defaults(handler=lambda session, args: _cmd_set_active(session, args, True))
+
+    reclassify = subparsers.add_parser(
+        "reclassify",
+        help="re-run the relevance filter over stored listings (all items, or the given ids)",
+    )
+    reclassify.add_argument(
+        "ids", type=int, nargs="*", help="item ids shown by 'list' (default: all)"
+    )
+    reclassify.add_argument(
+        "--dry-run", action="store_true", help="only report how many rows would be rewritten"
+    )
+    reclassify.set_defaults(handler=_cmd_reclassify)
 
     return parser
 
