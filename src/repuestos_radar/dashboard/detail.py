@@ -111,12 +111,12 @@ def distance_from_shop(slug: str) -> str | None:
 
 
 def distance_pill(distance_text: str) -> str:
-    """A distance as a gray pill: ``:gray-background[📍\u00a01,8 km]``.
+    """A distance as a gray pill: ``:gray-background[◎\u00a01,8 km]``.
 
     The space after the pin is non-breaking: on a phone-width screen the
     pill otherwise wraps between the pin and the number.
     """
-    return f":gray-background[📍\u00a0{distance_text}]"
+    return f":gray-background[◎\u00a0{distance_text}]"
 
 
 def _adopt_reading(state, location: dict | None) -> bool:
@@ -236,9 +236,9 @@ def _reference_point() -> tuple[float, float] | None:
     current = state.get("reference_point")
     with st.container(border=True):
         if current is not None:
-            st.markdown(f"📍 {t.FROM_MY_LOCATION}")
+            st.markdown(f"◎ {t.FROM_MY_LOCATION}")
         else:
-            st.markdown(f"📍 {from_shop}" if shop else f"📍 {t.NO_SHOP_LOCATION}")
+            st.markdown(f"◎ {from_shop}" if shop else f"◎ {t.NO_SHOP_LOCATION}")
         use_column, back_column = st.columns(2)
         if use_column.button(
             t.USE_MY_LOCATION,
@@ -420,10 +420,10 @@ def render() -> None:
             select(ServicePrice).where(ServicePrice.tracked_item_id == item.id)
         ).all()
         if services:
-            st.divider()
+            radar.rule()
             _render_margins(services, analyses, names)
 
-        st.divider()
+        radar.rule()
         st.subheader(t.TREND_HEADER)
         for analysis in analyses:
             points = tier_trends(session, item.id, analysis.tier, day)

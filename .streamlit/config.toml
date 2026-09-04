@@ -14,17 +14,35 @@ toolbarMode = "minimal"
 [browser]
 gatherUsageStats = false
 
-# Theme: light and dark follow the phone's setting; the app menu still lets
-# the user switch by hand. Colors come from the approved polish mockup; the
-# radar module keeps its own hard-coded palette in both themes on purpose.
-#
-# Fonts stay on Streamlit's bundled default (Source Sans): no web fonts.
+# Static serving exists for one reason: the font below is shipped with the
+# app (static/fonts) instead of fetched from a font host, so the phone
+# downloads it once, caches it, and never calls a third party.
+[server]
+enableStaticServing = true
+
+# Type and theme follow the approved "1a Fiel" design (Claude Design,
+# 2026-09-04): Inter, 8px radii, the radar ground as the dark theme, accent
+# as line and glow rather than flood. Light and dark follow the phone's
+# setting; the app menu still lets the user switch by hand. The radar module
+# keeps its own hard-coded palette in both themes on purpose.
 
 [theme]
-font = "sans-serif"
+font = "Inter, system-ui, sans-serif"
+headingFont = "Inter, system-ui, sans-serif"
+codeFont = "ui-monospace, Menlo, Consolas, monospace"
+# h1 page title 34, h2 card price 40, h3 tier heading 24, h4 offer price 28,
+# h5 card query 21 (500), h6 unused — the design's sizes on the 16px base.
+headingFontSizes = ["2.125rem", "2.5rem", "1.5rem", "1.75rem", "1.3125rem", "1rem"]
+headingFontWeights = [600, 600, 600, 600, 500, 500]
 baseRadius = "medium"
 buttonRadius = "medium"
 showWidgetBorder = true
+
+[[theme.fontFaces]]
+family = "Inter"
+url = "app/static/fonts/Inter-latin.woff2"
+weight = "400 700"
+style = "normal"
 
 [theme.light]
 primaryColor = "#2a9d5c"
@@ -37,13 +55,23 @@ redColor = "#d64545"
 orangeColor = "#b26a00"
 greenColor = "#2a9d5c"
 
+# Dark = the radar ground itself (#0d2a2a / #123632). The pill and band
+# colors are the design's translucent tints flattened onto the card surface:
+# gray = text at 8%, orange = #ffb347 at 14%, green = #38d67a at 14%.
 [theme.dark]
 primaryColor = "#38d67a"
-backgroundColor = "#0e1918"
-secondaryBackgroundColor = "#16221f"
+backgroundColor = "#0d2a2a"
+secondaryBackgroundColor = "#123632"
 textColor = "#e8efec"
-borderColor = "#2a3a36"
+borderColor = "#134235"
 linkColor = "#6fe0a0"
 redColor = "#ff6b6b"
+redTextColor = "#ff6b6b"
 orangeColor = "#ffb347"
+orangeTextColor = "#ffb347"
+orangeBackgroundColor = "#334735"
 greenColor = "#38d67a"
+greenTextColor = "#baf5d0"
+greenBackgroundColor = "#174c3c"
+grayTextColor = "#c9d9d3"
+grayBackgroundColor = "#234541"

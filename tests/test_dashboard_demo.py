@@ -89,7 +89,7 @@ def test_demo_measures_from_central_rosario_and_never_names_the_client(demo_env,
     monkeypatch.setenv("SHOP_LON", demo.DEMO_SHOP_LON)
     at = AppTest.from_string(_ORIGIN_SCRIPT, default_timeout=15).run()
     assert not at.exception
-    assert [m.value for m in at.markdown] == [f"📍 {text_es.DEMO_FROM_SHOP}"]
+    assert [m.value for m in at.markdown] == [f"◎ {text_es.DEMO_FROM_SHOP}"]
     assert at.button[1].label == text_es.DEMO_BACK_TO_SHOP
     at.session_state["geo_denied"] = True
     at.run()

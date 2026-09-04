@@ -285,7 +285,7 @@ def render() -> None:
             st.markdown(f"*{t.DEMO_QUICK_SEARCH_OFF}*")
         else:
             _render_quick_search(session)
-        st.divider()
+        radar.rule()
         _render_services(session, read_only)
-        st.divider()
+        radar.rule()
         _render_tracked(session, read_only)

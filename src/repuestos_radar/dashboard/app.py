@@ -5,9 +5,8 @@ import os
 
 import streamlit as st
 
-from repuestos_radar.dashboard import admin, auth, data, demo, detail, home, radar, text
+from repuestos_radar.dashboard import admin, auth, demo, detail, home, radar, text
 from repuestos_radar.dashboard.text import t
-from repuestos_radar.report import format_day
 from repuestos_radar.sources import CLOUD_CHANNELS, load_sources
 
 _COOKIE_NAME = "repuestos_radar_session"
@@ -182,15 +181,6 @@ def _build_pages() -> list[st.Page]:
     return list(PAGES.values())
 
 
-def _freshness_footer() -> None:
-    with data.open_session() as session:
-        day = data.overall_latest_day(session)
-    if day is None:
-        st.caption(t.NO_DATA_AT_ALL)
-    else:
-        st.caption(f"{t.UPDATED_PREFIX} {format_day(day)}")
-
-
 _LANGUAGE_LABELS = {"es": "ES", "en": "EN"}
 
 
@@ -229,6 +219,5 @@ def main() -> None:
     if demo.is_demo():
         _render_demo_banner()
     st.navigation(_build_pages()).run()
-    _freshness_footer()
     if not demo.is_demo() and st.sidebar.button(t.LOGOUT_BUTTON, use_container_width=True):
         _logout(_cookie_controller())
