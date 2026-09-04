@@ -337,9 +337,9 @@ daily crawl keeps covering them.
 
 ### Screenshots
 
-Phone-sized captures of the app in its dark theme, taken from a local run on the public demo's
+Phone-sized screenshots of the app in its dark theme, taken from a local run on the public demo's
 generated sample data — the prices and repair margins are not real.
 
 | Precios | Detalle | Ajustes |
 | --- | --- | --- |
-| <img src="docs/images/dashboard-home.png" width="250" alt="Home: freshness line and one card per tracked part with the best price, store, distance and margin"> | <img src="docs/images/dashboard-detail.png" width="250" alt="Detail: location control, sort switch and per-tier price boxes"> | <img src="docs/images/dashboard-admin.png" width="250" alt="Settings: quick search and repair price list"> |
+| <img src="docs/images/dashboard-home.png" width="250" alt="Home: &quot;updated today&quot; status line and one card per tracked part with the best price, store, distance and margin"> | <img src="docs/images/dashboard-detail.png" width="250" alt="Detail: location control, sort switch and per-tier price boxes"> | <img src="docs/images/dashboard-admin.png" width="250" alt="Settings: quick search and repair price list"> |

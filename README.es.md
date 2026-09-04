@@ -370,9 +370,10 @@ sigue cubriendo.
 
 ### Capturas de pantalla
 
-Capturas en tamaño de celular de la app en su tema oscuro, tomadas de una corrida local sobre los
-datos de muestra generados de la demo pública — los precios y los márgenes no son reales.
+Capturas de la app en tamaño de celular y en tema oscuro, tomadas de una corrida local sobre los
+datos de muestra que genera la demo pública — los precios y los márgenes de reparación no son
+reales.
 
 | Precios | Detalle | Ajustes |
 | --- | --- | --- |
-| <img src="docs/images/dashboard-home.png" width="250" alt="Precios: línea de actualización y una tarjeta por repuesto vigilado con mejor precio, tienda, distancia y margen"> | <img src="docs/images/dashboard-detail.png" width="250" alt="Detalle: control de ubicación, orden y cajas de precio por calidad"> | <img src="docs/images/dashboard-admin.png" width="250" alt="Ajustes: búsqueda rápida y lista de precios de reparación"> |
+| <img src="docs/images/dashboard-home.png" width="250" alt="Precios: línea de estado (&quot;actualizado hoy&quot;) y una tarjeta por repuesto vigilado con mejor precio, tienda, distancia y margen"> | <img src="docs/images/dashboard-detail.png" width="250" alt="Detalle: control de ubicación, orden y cajas de precio por calidad"> | <img src="docs/images/dashboard-admin.png" width="250" alt="Ajustes: búsqueda rápida y lista de precios de reparación"> |
