@@ -243,8 +243,9 @@ después con `kind ID part|phone`; la página de administración hace la misma p
 
 Las publicaciones guardadas conservan la etiqueta que recibieron el día que se bajaron. `reclassify`
 vuelve a pasar el filtro actual por ese historial (todos los ítems, o los ids indicados) y reescribe
-las etiquetas que cambiaron, así una palabra de repuesto nueva o un ítem pasado a `phone` también
-limpia los días ya guardados; `--dry-run` solo informa los conteos.
+las etiquetas que el filtro de hoy ya no daría igual, así una palabra de repuesto nueva o un ítem
+pasado a `phone` también limpia los días ya guardados; `--dry-run` solo muestra cuántas filas
+cambiarían, sin tocar nada.
 
 ## Reporte diario y lista de precios de reparaciones
 

@@ -388,11 +388,11 @@ def test_main_reclassify_prints_counts_and_dry_run_keeps_the_labels(capsys, cli_
 
     assert main(["reclassify", "--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "dry run — would relabel 1 of 1 rows: id=1 active=yes kind=phone" in out
+    assert "dry run — would rewrite 1 of 1 rows: id=1 active=yes kind=phone" in out
     assert labels() == ["match"]
 
     assert main(["reclassify", "1"]) == 0
-    assert 'relabeled 1 of 1 rows: id=1 active=yes kind=phone query="iphone 13"' in (
+    assert 'rewrote 1 of 1 rows: id=1 active=yes kind=phone query="iphone 13"' in (
         capsys.readouterr().out
     )
     assert labels() == ["reject"]

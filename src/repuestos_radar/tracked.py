@@ -225,7 +225,7 @@ def _cmd_reclassify(session: Session, args: argparse.Namespace) -> int:
     else:
         session.commit()
     for report in reports:
-        verb = "dry run — would relabel" if args.dry_run else "relabeled"
+        verb = "dry run — would rewrite" if args.dry_run else "rewrote"
         print(f"{verb} {report.changed} of {report.rows} rows: {_describe(report.item)}")
     return 0
 
@@ -272,7 +272,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "ids", type=int, nargs="*", help="item ids shown by 'list' (default: all)"
     )
     reclassify.add_argument(
-        "--dry-run", action="store_true", help="only report how many rows would change"
+        "--dry-run", action="store_true", help="only report how many rows would be rewritten"
     )
     reclassify.set_defaults(handler=_cmd_reclassify)
 

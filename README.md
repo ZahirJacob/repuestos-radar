@@ -222,9 +222,9 @@ filter rejects any listing whose title carries a part word (módulo, batería, f
 question when adding an item.
 
 Stored listings keep the label they got on the day they were fetched. `reclassify` re-runs the
-current filter over that history (every item, or the ids given) and rewrites the labels that changed,
-so a new part word or an item switched to `phone` also cleans up the days already stored;
-`--dry-run` only reports the counts.
+current filter over that history (every item, or the ids given) and rewrites every label the
+current rules disagree with, so a new part word or an item switched to `phone` also cleans up the
+days already stored; `--dry-run` only reports the counts.
 
 ## Daily report and repair price list
 
