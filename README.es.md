@@ -227,6 +227,8 @@ python -m repuestos_radar.tracked list
 python -m repuestos_radar.tracked pause 3
 python -m repuestos_radar.tracked resume 3
 python -m repuestos_radar.tracked kind 3 phone
+python -m repuestos_radar.tracked reclassify --dry-run
+python -m repuestos_radar.tracked reclassify 8 11
 ```
 
 `add` con una búsqueda ya seguida te lo avisa en vez de fallar, y reactiva el ítem si estaba
@@ -238,6 +240,11 @@ un celular entero ("samsung s24 ultra") también encuentra todos los repuestos d
 para un ítem `phone` el filtro de relevancia rechaza cualquier publicación cuyo título tenga una
 palabra de repuesto (módulo, batería, flex, tapa…). Se define con `add --kind phone` o se cambia
 después con `kind ID part|phone`; la página de administración hace la misma pregunta al agregar.
+
+Las publicaciones guardadas conservan la etiqueta que recibieron el día que se bajaron. `reclassify`
+vuelve a pasar el filtro actual por ese historial (todos los ítems, o los ids indicados) y reescribe
+las etiquetas que cambiaron, así una palabra de repuesto nueva o un ítem pasado a `phone` también
+limpia los días ya guardados; `--dry-run` solo informa los conteos.
 
 ## Reporte diario y lista de precios de reparaciones
 

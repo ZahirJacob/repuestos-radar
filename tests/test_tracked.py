@@ -1,12 +1,15 @@
 """Tests for the tracked-items management CLI. SQLite in-memory / temp file."""
 
+from datetime import date
+from decimal import Decimal
+
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 import repuestos_radar.tracked
-from repuestos_radar.models import Base, TrackedItem
+from repuestos_radar.models import Base, Listing, TrackedItem
 from repuestos_radar.tracked import (
     ADDED,
     ALREADY_ACTIVE,
@@ -14,9 +17,11 @@ from repuestos_radar.tracked import (
     NOT_FOUND,
     REACTIVATED,
     UNCHANGED,
+    ReclassifyReport,
     add_item,
     list_items,
     main,
+    reclassify_items,
     set_active,
     set_kind,
 )
@@ -311,3 +316,87 @@ def test_main_rejects_unknown_kind_value(capsys, cli_db) -> None:
     assert "invalid choice: 'tablet'" in capsys.readouterr().err
     assert main(["list"]) == 0
     assert "no tracked items" in capsys.readouterr().out
+
+
+def _stored(session: Session, item: TrackedItem, title: str, label: str, day: date) -> Listing:
+    row = Listing(
+        tracked_item_id=item.id,
+        source_slug="novocell",
+        external_id=title,
+        title=title,
+        price=Decimal("1000"),
+        currency="ARS",
+        condition="new",
+        url="https://example.test/" + title.replace(" ", "-"),
+        fetched_date=day,
+        relevance=label,
+        relevance_score=1.0,
+    )
+    session.add(row)
+    return row
+
+
+def test_reclassify_relabels_stored_rows_with_the_current_rules(session: Session) -> None:
+    phone, _ = add_item(session, "iphone 13", kind="phone")
+    part, _ = add_item(session, "bateria iphone 11")
+    session.commit()
+    stale = _stored(session, phone, "SENSOR PROXIMIDAD IPHONE 13", "match", date(2026, 9, 1))
+    fine = _stored(session, phone, "iPhone 13 128GB Reacondicionado", "match", date(2026, 9, 1))
+    other = _stored(session, part, "BATERIA IPHONE 11", "match", date(2026, 9, 1))
+    session.commit()
+
+    reports = reclassify_items(session, [phone.id])
+    session.commit()
+
+    assert reports == [ReclassifyReport(item=phone, rows=2, changed=1)]
+    assert stale.relevance == "reject" and stale.relevance_score == 0.0
+    assert fine.relevance == "match"
+    assert other.relevance == "match"  # not asked for
+
+
+def test_reclassify_defaults_to_every_item_and_reports_unknown_ids(session: Session) -> None:
+    phone, _ = add_item(session, "iphone 13", kind="phone")
+    part, _ = add_item(session, "bateria iphone 11")
+    session.commit()
+    _stored(session, phone, "BATERIA IPHONE 13", "match", date(2026, 9, 2))
+    _stored(session, part, "Funda Iphone 11", "match", date(2026, 9, 2))
+    session.commit()
+
+    reports = reclassify_items(session, None)
+    assert [(r.item.id, r.rows, r.changed) for r in reports] == [(phone.id, 1, 1), (part.id, 1, 1)]
+
+    with pytest.raises(ValueError, match="no tracked item with id 999"):
+        reclassify_items(session, [phone.id, 999])
+
+
+def test_main_reclassify_prints_counts_and_dry_run_keeps_the_labels(capsys, cli_db) -> None:
+    assert main(["add", "iphone 13", "--kind", "phone"]) == 0
+    capsys.readouterr()
+    engine = create_engine(cli_db)
+    with Session(engine) as session:
+        item = session.scalars(select(TrackedItem)).one()
+        _stored(session, item, "PARLANTE AURICULAR IPHONE 13", "match", date(2026, 9, 3))
+        session.commit()
+    engine.dispose()
+
+    def labels() -> list[str | None]:
+        engine = create_engine(cli_db)
+        with Session(engine) as session:
+            out = [row.relevance for row in session.scalars(select(Listing))]
+        engine.dispose()
+        return out
+
+    assert main(["reclassify", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "dry run — would relabel 1 of 1 rows: id=1 active=yes kind=phone" in out
+    assert labels() == ["match"]
+
+    assert main(["reclassify", "1"]) == 0
+    assert 'relabeled 1 of 1 rows: id=1 active=yes kind=phone query="iphone 13"' in (
+        capsys.readouterr().out
+    )
+    assert labels() == ["reject"]
+
+    assert main(["reclassify", "7"]) == 1
+    assert "error: no tracked item with id 7" in capsys.readouterr().out
+    assert labels() == ["reject"]

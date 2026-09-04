@@ -207,6 +207,8 @@ python -m repuestos_radar.tracked list
 python -m repuestos_radar.tracked pause 3
 python -m repuestos_radar.tracked resume 3
 python -m repuestos_radar.tracked kind 3 phone
+python -m repuestos_radar.tracked reclassify --dry-run
+python -m repuestos_radar.tracked reclassify 8 11
 ```
 
 `add` on an already-tracked query says so instead of failing, and reactivates the item if it was
@@ -218,6 +220,11 @@ Every tracked item has a kind: `part` (the default) or `phone`. The query for a 
 filter rejects any listing whose title carries a part word (módulo, batería, flex, tapa…). Set it with
 `add --kind phone` or change it later with `kind ID part|phone`; the admin page asks the same
 question when adding an item.
+
+Stored listings keep the label they got on the day they were fetched. `reclassify` re-runs the
+current filter over that history (every item, or the ids given) and rewrites the labels that changed,
+so a new part word or an item switched to `phone` also cleans up the days already stored;
+`--dry-run` only reports the counts.
 
 ## Daily report and repair price list
 
