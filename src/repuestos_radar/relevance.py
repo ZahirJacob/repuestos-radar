@@ -111,6 +111,7 @@ PART_WORDS: frozenset[str] = frozenset(
         "backcover",
         "teclado",
         "flexor",
+        "ic",  # "IC CRISTAL", "IC WIFI", "IC POWER": never a handset spec
     }
 )
 

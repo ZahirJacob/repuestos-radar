@@ -133,7 +133,7 @@ def reclassify_items(session: Session, item_ids: list[int] | None) -> list[Recla
         items = list(session.scalars(select(TrackedItem).order_by(TrackedItem.id)))
     else:
         items = []
-        for item_id in item_ids:
+        for item_id in dict.fromkeys(item_ids):  # dedupe, keep order
             item = session.get(TrackedItem, item_id)
             if item is None:
                 raise ValueError(f"no tracked item with id {item_id}")

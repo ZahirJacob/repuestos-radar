@@ -381,6 +381,7 @@ def test_apply_relevance_passes_the_kind_through() -> None:
 # part listing was rejected; the iPhone 13 item collected these nine.
 IPHONE_13_LEAKED_PART_TITLES = [
     "IC CRISTAL IPHONE 13 / 13 MINI / 13 PRO / 13 PRO MAX",
+    "IC WIFI IPHONE 13",
     "SENSOR PROXIMIDAD IPHONE 13",
     "SENSOR PROXIMIDAD IPHONE 13 PRO MAX",
     "PARLANTE AURICULAR IPHONE 13",

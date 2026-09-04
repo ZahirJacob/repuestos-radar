@@ -365,8 +365,23 @@ def test_reclassify_defaults_to_every_item_and_reports_unknown_ids(session: Sess
     reports = reclassify_items(session, None)
     assert [(r.item.id, r.rows, r.changed) for r in reports] == [(phone.id, 1, 1), (part.id, 1, 1)]
 
+    # A repeated id is processed once.
+    assert [r.item.id for r in reclassify_items(session, [part.id, part.id])] == [part.id]
+
     with pytest.raises(ValueError, match="no tracked item with id 999"):
         reclassify_items(session, [phone.id, 999])
+
+
+def test_reclassify_rewrites_a_row_whose_label_held_but_whose_score_moved(session: Session) -> None:
+    part, _ = add_item(session, "bateria iphone 11")
+    session.commit()
+    row = _stored(session, part, "BATERIA IPHONE 11", "match", date(2026, 9, 1))
+    row.relevance_score = 0.5  # the current rules score this title 1.0
+    session.commit()
+
+    reports = reclassify_items(session, [part.id])
+    assert reports[0].changed == 1
+    assert row.relevance == "match" and row.relevance_score == 1.0
 
 
 def test_main_reclassify_prints_counts_and_dry_run_keeps_the_labels(capsys, cli_db) -> None:
