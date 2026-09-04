@@ -7,18 +7,19 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from repuestos_radar.analysis import TierAnalysis, analyze_item, latest_day, listings_for_day
-from repuestos_radar.dashboard import data, radar, text_es
+from repuestos_radar.dashboard import data, radar
 from repuestos_radar.dashboard.detail import distance_from_shop, distance_pill, source_names
+from repuestos_radar.dashboard.text import t
 from repuestos_radar.margin import margins_for
 from repuestos_radar.models import ServicePrice, TrackedItem
 from repuestos_radar.relevance import Relevance
-from repuestos_radar.report import TIER_LABELS_ES, format_ars
+from repuestos_radar.report import format_ars
 
 
 def _best_caption(store: str, tier_label: str, distance_text: str | None) -> str:
     """``Mejor precio en Celuphone (Original)`` plus a distance pill from the
     shop when both positions are known (the pill carries the pin)."""
-    caption = text_es.BEST_CAPTION.format(store=store, tier=tier_label)
+    caption = t.BEST_CAPTION.format(store=store, tier=tier_label)
     if distance_text is not None:
         caption += " " + distance_pill(distance_text)
     return caption
@@ -29,8 +30,8 @@ def _margin_line(margin: Decimal) -> str:
     or ``:red[↓ Perdés $1.200]``."""
     amount = format_ars(abs(margin))
     if margin >= 0:
-        return f":green[↑ {text_es.MARGIN_GAIN.format(amount=amount)}]"
-    return f":red[↓ {text_es.MARGIN_LOSS.format(amount=amount)}]"
+        return f":green[↑ {t.MARGIN_GAIN.format(amount=amount)}]"
+    return f":red[↓ {t.MARGIN_LOSS.format(amount=amount)}]"
 
 
 def _best_offer(analyses: list[TierAnalysis]):
@@ -57,7 +58,7 @@ def _needs_review(analyses: list[TierAnalysis]) -> bool:
 def render() -> None:
     from repuestos_radar.dashboard.app import PAGES  # late: app builds PAGES first
 
-    radar.page_title(text_es.NAV_PRICES)
+    radar.page_title(t.NAV_PRICES)
     with data.open_session() as session:
         items = session.scalars(
             select(TrackedItem).where(TrackedItem.active).order_by(TrackedItem.id)
@@ -69,9 +70,9 @@ def render() -> None:
                 analyses = analyze_item(listings_for_day(session, item.id, day)) if day else []
                 best = _best_offer(analyses)
                 if best is None:
-                    st.markdown(f"*{text_es.NO_DATA_TODAY}*")
+                    st.markdown(f"*{t.NO_DATA_TODAY}*")
                 else:
-                    tier_label = TIER_LABELS_ES[best.tier]
+                    tier_label = t.TIER_LABELS[best.tier]
                     store = source_names().get(best.source_slug, best.source_slug)
                     st.markdown(f"## {format_ars(best.price)}")
                     st.caption(
@@ -81,7 +82,7 @@ def render() -> None:
                     if margin is not None:
                         st.markdown(_margin_line(margin.margin))
                     if _needs_review(analyses):
-                        st.markdown(f":orange[{text_es.NEEDS_REVIEW_DOT}]")
-                if st.button(text_es.SEE_DETAIL, key=f"detail-{item.id}", use_container_width=True):
+                        st.markdown(f":orange[{t.NEEDS_REVIEW_DOT}]")
+                if st.button(t.SEE_DETAIL, key=f"detail-{item.id}", use_container_width=True):
                     st.session_state["selected_item_id"] = item.id
                     st.switch_page(PAGES["detail"])

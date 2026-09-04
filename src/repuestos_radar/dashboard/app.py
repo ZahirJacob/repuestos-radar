@@ -5,7 +5,8 @@ import os
 
 import streamlit as st
 
-from repuestos_radar.dashboard import admin, auth, data, detail, home, radar, text_es
+from repuestos_radar.dashboard import admin, auth, data, demo, detail, home, radar, text
+from repuestos_radar.dashboard.text import t
 from repuestos_radar.report import format_day
 from repuestos_radar.sources import CLOUD_CHANNELS, load_sources
 
@@ -81,16 +82,18 @@ def login_status_line(count: int | None) -> str:
     """The mono line under the brand: singular for one store, plural otherwise
     (zero included), and just the place when the count is unknown."""
     if count is None:
-        return text_es.LOGIN_STATUS_NO_COUNT
+        return t.LOGIN_STATUS_NO_COUNT
     if count == 1:
-        return text_es.LOGIN_STATUS_ONE
-    return text_es.LOGIN_STATUS.format(count=count)
+        return t.LOGIN_STATUS_ONE
+    return t.LOGIN_STATUS.format(count=count)
 
 
 def _require_login() -> None:
+    if demo.is_demo():
+        return
     password = _expected_password()
     if not password:
-        st.error(text_es.NO_PASSWORD_CONFIGURED)
+        st.error(t.NO_PASSWORD_CONFIGURED)
         st.stop()
     if st.session_state.get("authed"):
         return
@@ -103,17 +106,15 @@ def _require_login() -> None:
     with st.form("login"):
         # "current-password": browsers offer save/autofill for an existing
         # password instead of Chrome's "create a strong password" sign-up prompt.
-        entered = st.text_input(
-            text_es.PASSWORD_LABEL, type="password", autocomplete="current-password"
-        )
-        submitted = st.form_submit_button(text_es.LOGIN_BUTTON, use_container_width=True)
+        entered = st.text_input(t.PASSWORD_LABEL, type="password", autocomplete="current-password")
+        submitted = st.form_submit_button(t.LOGIN_BUTTON, use_container_width=True)
     if submitted:
         if auth.check_password(entered, password):
             st.session_state["authed"] = True
             _write_cookie(controller, password)
             st.rerun()
         else:
-            st.error(text_es.WRONG_PASSWORD)
+            st.error(t.WRONG_PASSWORD)
     st.stop()
 
 
@@ -123,12 +124,10 @@ PAGES: dict[str, st.Page] = {}
 def _build_pages() -> list[st.Page]:
     PAGES.clear()
     PAGES["home"] = st.Page(
-        home.render, title=text_es.NAV_PRICES, icon="📱", url_path="home", default=True
+        home.render, title=t.NAV_PRICES, icon="📱", url_path="home", default=True
     )
-    PAGES["detail"] = st.Page(
-        detail.render, title=text_es.NAV_DETAIL, icon="🔎", url_path="detalle"
-    )
-    PAGES["admin"] = st.Page(admin.render, title=text_es.NAV_SETTINGS, icon="🛠", url_path="ajustes")
+    PAGES["detail"] = st.Page(detail.render, title=t.NAV_DETAIL, icon="🔎", url_path="detalle")
+    PAGES["admin"] = st.Page(admin.render, title=t.NAV_SETTINGS, icon="🛠", url_path="ajustes")
     return list(PAGES.values())
 
 
@@ -136,13 +135,47 @@ def _freshness_footer() -> None:
     with data.open_session() as session:
         day = data.overall_latest_day(session)
     if day is None:
-        st.caption(text_es.NO_DATA_AT_ALL)
+        st.caption(t.NO_DATA_AT_ALL)
     else:
-        st.caption(f"{text_es.UPDATED_PREFIX} {format_day(day)}")
+        st.caption(f"{t.UPDATED_PREFIX} {format_day(day)}")
+
+
+_LANGUAGE_LABELS = {"es": "ES", "en": "EN"}
+
+
+def _adopt_language_from_url() -> None:
+    """``?lang=en`` picks the language for a shared demo link, once per session."""
+    if st.session_state.get("lang-from-url"):
+        return
+    st.session_state["lang-from-url"] = True
+    wanted = st.query_params.get("lang")
+    if wanted in text.LANGUAGES:
+        text.set_language(wanted)
+
+
+def _render_demo_banner() -> None:
+    """The sample-data notice and the ES/EN toggle, above every demo page."""
+    _adopt_language_from_url()
+    notice, toggle = st.columns([4, 1], vertical_alignment="center")
+    choice = toggle.segmented_control(
+        t.DEMO_LANGUAGE_LABEL,
+        list(_LANGUAGE_LABELS),
+        format_func=_LANGUAGE_LABELS.get,
+        default=text.current_language(),
+        selection_mode="single",
+        label_visibility="collapsed",
+        key="lang-toggle",
+    )
+    if choice in text.LANGUAGES and choice != text.current_language():
+        text.set_language(choice)
+        st.rerun()
+    notice.info(t.DEMO_BANNER)
 
 
 def main() -> None:
-    st.set_page_config(page_title=text_es.APP_TITLE, page_icon="📡", layout="centered")
+    st.set_page_config(page_title=t.APP_TITLE, page_icon="📡", layout="centered")
     _require_login()
+    if demo.is_demo():
+        _render_demo_banner()
     st.navigation(_build_pages()).run()
     _freshness_footer()

@@ -1,8 +1,11 @@
 """Every user-visible string of the dashboard, in Rioplatense Spanish.
 
-One module so (a) Mo reviews Spanish in one place, (b) an English mode later
-is a translation of this file, not a hunt through page code.
+One module so (a) Mo reviews Spanish in one place, (b) the English mode
+(``text_en``) is a translation of this file, not a hunt through page code.
+Pages read strings through ``text.t`` so the language toggle can swap them.
 """
+
+from repuestos_radar.report import TIER_LABELS_ES as TIER_LABELS  # noqa: F401
 
 APP_TITLE = "Repuestos Radar"
 
@@ -127,3 +130,19 @@ QUICK_SEARCH_SKIPPED_NOTE = "{names}: el radar solo busca ahí una vez por día.
 QUICK_SEARCH_BLOCKED_NOTE = "{names}: por ahora el radar no puede entrar ahí."
 QUICK_SEARCH_NO_ITEMS = "No hay repuestos vigilados. Agregá uno abajo para poder buscar precios."
 QUICK_SEARCH_SOURCE_FAILED = "No pudimos consultar {name} esta vez."
+
+# Public demo
+DEMO_BANNER = (
+    "**Demo pública.** Los precios son datos de muestra generados, no precios reales de las "
+    "tiendas. Ajustes es solo de lectura."
+)
+DEMO_LANGUAGE_LABEL = "Idioma"
+DEMO_ADMIN_READ_ONLY = "En la demo, Ajustes es solo de lectura."
+DEMO_QUICK_SEARCH_OFF = "No está disponible en la demo — buscaría en las tiendas reales."
+# The demo measures from a public spot, not the shop, and never names the client.
+DEMO_FROM_SHOP = "Desde: centro de Rosario"
+DEMO_BACK_TO_SHOP = "Volver al centro"
+DEMO_LOCATION_DENIED = (
+    "No pudimos usar tu ubicación (el celular no la compartió). "
+    "Seguimos midiendo desde el centro de Rosario."
+)

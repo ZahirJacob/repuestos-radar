@@ -37,6 +37,16 @@ TIER_LABELS_ES = {
     "unlabeled": "Sin calidad indicada",
 }
 
+# The dashboard's English mode; the CLI report stays Spanish.
+TIER_LABELS_EN = {
+    "original": "Original",
+    "oled": "OLED",
+    "incell": "Incell/TFT",
+    "nuevo": "New",
+    "reacondicionado": "Refurbished",
+    "unlabeled": "No quality stated",
+}
+
 
 def format_ars(value: Decimal) -> str:
     """Whole pesos, Argentine thousands separator: 20700 -> "$20.700"."""

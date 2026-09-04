@@ -26,8 +26,6 @@ from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from dataclasses import dataclass, field
-from datetime import date, datetime
-from zoneinfo import ZoneInfo
 
 import yaml
 from sqlalchemy import func, select
@@ -35,6 +33,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from repuestos_radar.adapters import Adapter, AdapterError
+from repuestos_radar.clock import argentina_today  # noqa: F401  (re-exported for callers)
 from repuestos_radar.db import get_engine, get_session_factory, init_db
 from repuestos_radar.ingest import build_adapters
 from repuestos_radar.models import QuickSearchRun, TrackedItem
@@ -45,7 +44,6 @@ from repuestos_radar.storage import save_classified_listings
 SEARCHABLE_PLATFORMS = frozenset({"woocommerce", "wix"})
 DAILY_CAP = 10
 
-_ARGENTINA_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 
 # One quick search at a time per server process; the Streamlit app runs in a
 # single process, so a plain module lock is the whole story.
@@ -86,11 +84,6 @@ class QuickSearchReport:
     Kept apart from ``sources`` so the UI can explain them with their own note
     instead of the crawl-only one.
     """
-
-
-def argentina_today() -> date:
-    """The calendar day the cap counts against (dad's timezone, not UTC)."""
-    return datetime.now(_ARGENTINA_TZ).date()
 
 
 def runs_today(session: Session) -> int:
