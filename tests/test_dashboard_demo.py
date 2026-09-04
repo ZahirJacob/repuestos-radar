@@ -11,6 +11,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 _ENTRY = _ROOT / "streamlit_app.py"
 _DEMO_ENTRY = _ROOT / "demo_app.py"
 _ADMIN_SCRIPT = "from repuestos_radar.dashboard import admin\nadmin.render()\n"
+_ORIGIN_SCRIPT = "from repuestos_radar.dashboard import detail\ndetail._reference_point()\n"
 
 
 @pytest.fixture
@@ -81,3 +82,17 @@ def test_demo_settings_page_is_read_only(demo_env):
     assert text_es.DEMO_QUICK_SEARCH_OFF in body
     assert "Cambio módulo A32" in body and "modulo samsung a32" in body
     assert not at.button and not at.text_input and not at.selectbox and not at.expander
+
+
+def test_demo_measures_from_central_rosario_and_never_names_the_client(demo_env, monkeypatch):
+    monkeypatch.setenv("SHOP_LAT", demo.DEMO_SHOP_LAT)
+    monkeypatch.setenv("SHOP_LON", demo.DEMO_SHOP_LON)
+    at = AppTest.from_string(_ORIGIN_SCRIPT, default_timeout=15).run()
+    assert not at.exception
+    assert [m.value for m in at.markdown] == [f"📍 {text_es.DEMO_FROM_SHOP}"]
+    assert at.button[1].label == text_es.DEMO_BACK_TO_SHOP
+    at.session_state["geo_denied"] = True
+    at.run()
+    assert [c.value for c in at.caption] == [text_es.DEMO_LOCATION_DENIED]
+    screen = " ".join(m.value for m in at.markdown) + " ".join(c.value for c in at.caption)
+    assert "Activcelu" not in screen

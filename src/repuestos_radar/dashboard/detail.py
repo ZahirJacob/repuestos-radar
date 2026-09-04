@@ -19,7 +19,7 @@ from repuestos_radar.analysis import (
     listings_for_day,
     tier_trends,
 )
-from repuestos_radar.dashboard import data, distance, radar
+from repuestos_radar.dashboard import data, demo, distance, radar
 from repuestos_radar.dashboard.text import t
 from repuestos_radar.margin import TierMargin, margins_for
 from repuestos_radar.models import ServicePrice, TrackedItem
@@ -219,16 +219,25 @@ def _ask_browser(request_id: int) -> object:
         return None
 
 
+def _origin_labels() -> tuple[str, str, str]:
+    """(from-line, back-button, denied-note) for the default origin: the shop,
+    or the public stand-in the demo measures from (never naming the client)."""
+    if demo.is_demo():
+        return t.DEMO_FROM_SHOP, t.DEMO_BACK_TO_SHOP, t.DEMO_LOCATION_DENIED
+    return t.FROM_SHOP, t.BACK_TO_SHOP, t.LOCATION_DENIED
+
+
 def _reference_point() -> tuple[float, float] | None:
     """The shop by default; the visitor's position while they opt in this visit."""
     shop = distance.shop_location()
+    from_shop, back_to_shop, location_denied = _origin_labels()
     state = st.session_state
     current = state.get("reference_point")
     with st.container(border=True):
         if current is not None:
             st.markdown(f"📍 {t.FROM_MY_LOCATION}")
         else:
-            st.markdown(f"📍 {t.FROM_SHOP}" if shop else f"📍 {t.NO_SHOP_LOCATION}")
+            st.markdown(f"📍 {from_shop}" if shop else f"📍 {t.NO_SHOP_LOCATION}")
         use_column, back_column = st.columns(2)
         if use_column.button(
             t.USE_MY_LOCATION,
@@ -239,7 +248,7 @@ def _reference_point() -> tuple[float, float] | None:
         ):
             _request_location(state)
         if back_column.button(
-            t.BACK_TO_SHOP,
+            back_to_shop,
             type="secondary",
             icon=":material/storefront:",
             width="stretch",
@@ -247,7 +256,7 @@ def _reference_point() -> tuple[float, float] | None:
             _back_to_shop(state)
             st.rerun()
         if state.get("geo_denied"):
-            st.caption(t.LOCATION_DENIED)
+            st.caption(location_denied)
         if state.get("geo_requested"):
             answer = _ask_browser(state.get("geo_request_id", 0))
             if _answer_is_denied(answer):

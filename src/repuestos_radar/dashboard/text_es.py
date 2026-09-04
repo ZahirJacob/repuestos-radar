@@ -134,8 +134,15 @@ QUICK_SEARCH_SOURCE_FAILED = "No pudimos consultar {name} esta vez."
 # Public demo
 DEMO_BANNER = (
     "**Demo pública.** Los precios son datos de muestra generados, no precios reales de las "
-    "tiendas. Los cambios en Ajustes están desactivados."
+    "tiendas. Ajustes es solo de lectura."
 )
 DEMO_LANGUAGE_LABEL = "Idioma"
-DEMO_ADMIN_READ_ONLY = "En la demo los ajustes son solo de lectura."
+DEMO_ADMIN_READ_ONLY = "En la demo, Ajustes es solo de lectura."
 DEMO_QUICK_SEARCH_OFF = "No está disponible en la demo — buscaría en las tiendas reales."
+# The demo measures from a public spot, not the shop, and never names the client.
+DEMO_FROM_SHOP = "Desde: centro de Rosario"
+DEMO_BACK_TO_SHOP = "Volver al centro"
+DEMO_LOCATION_DENIED = (
+    "No pudimos usar tu ubicación (el celular no la compartió). "
+    "Seguimos midiendo desde el centro de Rosario."
+)

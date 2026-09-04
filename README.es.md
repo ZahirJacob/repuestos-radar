@@ -135,7 +135,7 @@ Celuphone (Woo) ────┘                                fuente, fecha)   
   nivel de calidad con distancias en línea recta, precios justos, márgenes, búsqueda rápida a
   pedido y una página de administración para precios de reparaciones y repuestos vigilados.
 - **M5 — Alertas y pronósticos**: alertas de baja de precio y pronósticos simples de tendencia.
-- **Post-M4 — Demo pública** *(hecha)*: un despliegue apto para portfolio con datos de muestra,
+- **Post-M4 — Demo pública** *(publicada)*: un despliegue apto para portfolio con datos de muestra,
   sin contraseña y con selector ES/EN.
 
 ## Entorno de desarrollo
@@ -258,17 +258,18 @@ cliente.
 - En modo demo el dashboard nunca lee `DATABASE_URL`. Trabaja sobre un archivo SQLite descartable
   que `repuestos_radar.dashboard.demo` carga con treinta días de precios inventados para cinco
   ítems (cuatro repuestos, un celular) en las tiendas reales del registro: los nombres y las
-  distancias son reales, los precios no, y un aviso lo dice. La muestra es determinística y termina
-  siempre en el día de hoy; una calidad trae un precio fuera de rango a propósito y otra un título
+  distancias son reales, los precios no, y un aviso lo dice. La muestra es determinística y siempre
+  termina hoy; una calidad trae un precio fuera de rango a propósito y otra un título
   dudoso, para que se vean los avisos. Las distancias se miden desde un punto público del centro de
   Rosario, no desde el local.
 - Se saltea el login, la página de Ajustes es solo de lectura (listas, sin formularios) y la
-  búsqueda al instante está apagada: consultaría a las tiendas reales.
-- Idioma: el control ES/EN del aviso, o `?lang=en` en la URL para compartir el link. El español es
-  el valor por defecto; la app del cliente no tiene selector.
+  búsqueda rápida está apagada: consultaría a las tiendas reales.
+- Idioma: el control ES/EN del aviso, o `?lang=en` en la URL para compartir el link. El idioma por
+  defecto es el español; la app del cliente no tiene selector.
 
-Para correrla local: `uv run streamlit run demo_app.py`. Desplegarla es una app más en Streamlit
-Community Cloud sobre este repositorio, con `demo_app.py` como archivo principal y sin secrets.
+Para correrla en tu máquina: `uv run streamlit run demo_app.py`. Para desplegarla, alcanza con
+crear una app más en Streamlit Community Cloud sobre este repositorio, con `demo_app.py` como
+archivo principal y sin secrets.
 
 ## Reporte diario y lista de precios de reparaciones
 

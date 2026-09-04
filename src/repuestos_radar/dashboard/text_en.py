@@ -13,7 +13,7 @@ APP_TITLE = "Repuestos Radar"
 PASSWORD_LABEL = "Password"
 LOGIN_BUTTON = "Sign in"
 WRONG_PASSWORD = "Wrong password."
-NO_PASSWORD_CONFIGURED = "The app password is not configured. Tell the team."
+NO_PASSWORD_CONFIGURED = "The app password is not configured. Let the team know."
 LOGIN_STATUS = "From Rosario · {count} stores on the radar"
 LOGIN_STATUS_ONE = "From Rosario · 1 store on the radar"
 LOGIN_STATUS_NO_COUNT = "From Rosario"
@@ -46,7 +46,7 @@ FAIR_PRICE_PREFIX = "Fair price:"
 FAIR_PRICE_RANGE = "between {low} and {high} ({count} stores)"
 SINGLE_STORE_NOTE = "only one store carries this part — no market price"
 OUTLIER_WARNING = "far from the rest — could be a mistake or a real deal"
-LOW_CONFIDENCE_WARNING = "may be another model"
+LOW_CONFIDENCE_WARNING = "may be a different model"
 MARGIN_HEADER = "Margins per repair"
 MARGIN_LINE = "{label} ({service}): {verb} {amount} with the part from {store} ({tier})"
 MARGIN_VERB_GAIN = "you make"
@@ -66,7 +66,7 @@ BACK_TO_SHOP = "Back to the shop"
 LOCATION_DENIED = (
     "We could not use your location (the phone did not share it). Still measuring from the shop."
 )
-NO_SHOP_LOCATION = "The shop location is not configured. Tell the team."
+NO_SHOP_LOCATION = "The shop location is not configured. Let the team know."
 NO_STORE_LOCATION = "—"
 SHIPS_ONLY_NOTE = "shipping only"
 
@@ -81,7 +81,7 @@ SERVICE_CONFIRM_NO = "No"
 SERVICE_ADD_HEADER = "Add a repair"
 SERVICE_LABEL_FIELD = "Repair name"
 SERVICE_ITEM_FIELD = "Part it uses"
-SERVICE_PRICE_FIELD = "Price to the customer (in pesos)"
+SERVICE_PRICE_FIELD = "Customer price (in pesos)"
 SERVICE_ADD_BUTTON = "Add"
 SERVICE_SAVED = "Saved."
 SERVICE_UPDATED_EXISTING = (
@@ -96,9 +96,9 @@ LABEL_EMPTY = "The name cannot be empty."
 # Admin — tracked parts
 TRACKED_HEADER = "Tracked parts"
 TRACKED_ADD_HEADER = "Add a part or a phone"
-TRACKED_QUERY_FIELD = "Search words"
+TRACKED_QUERY_FIELD = "Search terms"
 TRACKED_QUERY_HINT = (
-    "The words used to search the stores, like in a website's search box. "
+    "The terms used to search the stores, like in a website's search box. "
     'Examples: "modulo samsung a32" or "moto g52".'
 )
 TRACKED_KIND_LABEL = "What is it?"
@@ -110,9 +110,11 @@ TRACKED_ADDED = (
     "Added. To see prices right away use “Search prices now”; "
     "otherwise they show up with the daily search."
 )
-TRACKED_ALREADY = "It is already on the list."
+TRACKED_ALREADY = "Already on the list."
 TRACKED_STOP = "Stop tracking"
-TRACKED_STOP_WARNING = "The price history is kept, but the radar stops searching for it every day."
+TRACKED_STOP_WARNING = (
+    "The price history is kept, but the radar will no longer search for it each day."
+)
 TRACKED_CONFIRM_YES = "Yes, stop tracking"
 TRACKED_STOPPED = "Done — no longer tracked."
 
@@ -127,15 +129,22 @@ QUICK_SEARCH_CAP = "Today's {cap} searches are used up. There are more tomorrow.
 QUICK_SEARCH_USED = "Searches today: {used} of {cap}"
 QUICK_SEARCH_BUSY = "A search is already running — wait for it to finish."
 QUICK_SEARCH_SKIPPED_NOTE = "{names}: the radar only searches there once a day."
-QUICK_SEARCH_BLOCKED_NOTE = "{names}: the radar cannot get in there for now."
-QUICK_SEARCH_NO_ITEMS = "No parts are being tracked. Add one below to be able to search prices."
+QUICK_SEARCH_BLOCKED_NOTE = "{names}: the radar can't get in for now."
+QUICK_SEARCH_NO_ITEMS = "No parts are being tracked. Add one below to search prices."
 QUICK_SEARCH_SOURCE_FAILED = "We could not check {name} this time."
 
 # Public demo
 DEMO_BANNER = (
     "**Public demo.** The prices are generated sample data, not real store prices. "
-    "Changes in Settings are disabled."
+    "Settings is read-only."
 )
 DEMO_LANGUAGE_LABEL = "Language"
-DEMO_ADMIN_READ_ONLY = "In the demo the settings are read-only."
+DEMO_ADMIN_READ_ONLY = "Settings are read-only in the demo."
 DEMO_QUICK_SEARCH_OFF = "Not available in the demo — it would search the real stores."
+# The demo measures from a public spot, not the shop, and never names the client.
+DEMO_FROM_SHOP = "From: central Rosario"
+DEMO_BACK_TO_SHOP = "Back to central Rosario"
+DEMO_LOCATION_DENIED = (
+    "We could not use your location (the phone did not share it). "
+    "Still measuring from central Rosario."
+)

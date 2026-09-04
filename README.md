@@ -235,16 +235,16 @@ toggle, and generated sample data, so anyone can click around without seeing the
   `REPUESTOS_RADAR_DEMO=1` before the app starts, so the demo deployment needs **no secrets**.
 - In demo mode the dashboard never reads `DATABASE_URL`. It works on a throw-away SQLite file
   seeded by `repuestos_radar.dashboard.demo` with thirty days of made-up prices for five items
-  (four parts, one phone) across the real stores of the registry — their names and distances are
+  (four parts, one phone) across the registry's real stores — their names and distances are
   real, the prices are not, and a banner says so. The sample is deterministic and always ends on
   the current day; one tier carries a deliberate outlier and one a low-confidence title so the
   warnings show. Distances are measured from a public spot in central Rosario, not the shop.
-- The login is skipped, the Settings page is read-only (lists only, no forms) and the quick search
-  is off — it would hit the real stores.
+- The login is skipped, the Settings page is read-only (lists only, no forms), and the quick
+  search is off — it would hit the real stores.
 - Language: the ES/EN control in the banner, or `?lang=en` in the URL for a shared link. Spanish
   is the default; the client's app has no toggle.
 
-Run it locally with `uv run streamlit run demo_app.py`. Deploying it is one more Streamlit
+Run it locally with `uv run streamlit run demo_app.py`. To deploy it, create one more Streamlit
 Community Cloud app on this repository with `demo_app.py` as the main file and no secrets.
 
 ## Daily report and repair price list
