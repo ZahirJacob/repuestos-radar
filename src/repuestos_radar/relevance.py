@@ -132,6 +132,15 @@ PART_WORDS_LEADING: frozenset[str] = frozenset(
         "antena",
         "microfono",
         "memoria",
+        # Seen leading real part titles on the first kind=phone ingest
+        # (2026-09-03): "SENSOR PROXIMIDAD IPHONE 13", "PARLANTE AURICULAR
+        # IPHONE 13", "IC CRISTAL IPHONE 13". After the model they are specs
+        # ("Sensor Lidar", "Parlantes estéreo", "Cristal Ceramic Shield").
+        "sensor",
+        "proximidad",
+        "parlante",
+        "auricular",
+        "cristal",
     }
 )
 

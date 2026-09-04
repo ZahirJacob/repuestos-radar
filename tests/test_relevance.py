@@ -373,3 +373,37 @@ def test_apply_relevance_passes_the_kind_through() -> None:
 
     assert [c.result.relevance for c in as_phone] == [Relevance.MATCH, Relevance.REJECT]
     assert [c.result.relevance for c in as_part] == [Relevance.MATCH, Relevance.MATCH]
+
+
+# Real Novocell titles that leaked through the phone rule on the first
+# kind=phone ingest (2026-09-03): each leads with a part word that was not in
+# either tier yet. For the S24 Ultra, "moto g52" and "moto g35" items every
+# part listing was rejected; the iPhone 13 item collected these nine.
+IPHONE_13_LEAKED_PART_TITLES = [
+    "IC CRISTAL IPHONE 13 / 13 MINI / 13 PRO / 13 PRO MAX",
+    "SENSOR PROXIMIDAD IPHONE 13",
+    "SENSOR PROXIMIDAD IPHONE 13 PRO MAX",
+    "PARLANTE AURICULAR IPHONE 13",
+    "PARLANTE AURICULAR IPHONE 13 MINI",
+]
+
+
+@pytest.mark.parametrize("title", IPHONE_13_LEAKED_PART_TITLES)
+def test_phone_item_rejects_leading_sensor_speaker_and_glass_parts(title: str) -> None:
+    result = classify("iphone 13", title, kind="phone")
+    assert result.relevance is Relevance.REJECT
+    assert result.reason.startswith("part word in a phone item: ")
+
+
+def test_phone_item_keeps_handset_whose_specs_name_a_sensor_or_speaker() -> None:
+    # The new words are LEADING-tier: after the model they are specs, not parts.
+    title = "iPhone 13 128GB Sensor Lidar Parlantes Estéreo Cristal Ceramic Shield"
+    result = classify("iphone 13", title, kind="phone")
+    assert result.relevance is Relevance.MATCH
+    assert "part word" not in result.reason
+
+
+def test_part_item_still_softens_singular_parlante_and_auricular() -> None:
+    # SOFT is untouched: for a part item "parlante"/"auricular" cap at LOW_CONFIDENCE.
+    result = classify("modulo iphone 13", "Modulo Iphone 13 con Parlante Auricular")
+    assert result.relevance is Relevance.LOW_CONFIDENCE
