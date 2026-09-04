@@ -320,6 +320,21 @@ def test_sitemap_that_inflates_past_the_cap_is_skipped_not_inflated(monkeypatch,
     assert len(store.category_requests("/")) >= 1  # homepage fallback ran
 
 
+def test_sitemap_with_corrupt_deflate_data_falls_back_to_the_homepage() -> None:
+    """A valid gzip header over garbage raises zlib.error, not BadGzipFile:
+    that is a broken sitemap, not a source failure."""
+    store = two_page_store()
+    store.sitemap = gzip.compress(b"x")[:10] + b"\xff" * 20
+
+    listings = make_adapter(store).fetch("modulo")
+
+    assert [listing.external_id for listing in listings] == [
+        "MD-E13-SM",
+        "modulo-motorola-g8-power",
+    ]
+    assert len(store.category_requests("/")) >= 1
+
+
 # --- per-source crawl tuning -------------------------------------------------
 
 MULTI_CAT_LOCS = [

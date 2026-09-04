@@ -53,17 +53,26 @@ def test_cap_applies_to_the_decoded_body_of_a_gzipped_response():
     payload = gzip.compress(b"a" * 5000)
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, content=payload, headers={"Content-Encoding": "gzip"})
+        # stream=, not content=: httpx decodes content= eagerly in the
+        # constructor, which would leave the client's decoder path untested.
+        return httpx.Response(
+            200, stream=httpx.ByteStream(payload), headers={"Content-Encoding": "gzip"}
+        )
 
     with pytest.raises(AdapterError, match="too large"):
         _client(handler, max_response_bytes=1000).get(f"{BASE}/gz")
     assert _client(handler, max_response_bytes=10_000).get(f"{BASE}/gz").text == "a" * 5000
 
 
-def test_redirect_chains_are_bounded():
+def test_redirect_chains_are_bounded_and_not_retried():
+    calls = 0
+
     def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
         n = int(request.url.path.strip("/") or 0)
         return httpx.Response(302, headers={"Location": f"{BASE}/{n + 1}"})
 
     with pytest.raises(AdapterError, match="TooManyRedirects"):
         _client(handler).get(f"{BASE}/0")
+    assert calls == 6  # the request plus five hops; a loop is deterministic, no retry

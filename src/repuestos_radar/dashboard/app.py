@@ -92,6 +92,10 @@ def _clear_cookie(controller) -> None:
 
 def _logout(controller) -> None:
     st.session_state.pop("authed", None)
+    # The component removes the cookie from JavaScript, asynchronously; on
+    # the very next rerun the old value can still be read back. This flag
+    # keeps the session on the login form until a password is typed again.
+    st.session_state["logged_out"] = True
     _clear_cookie(controller)
     st.rerun()
 
@@ -138,7 +142,7 @@ def _require_login() -> None:
     if st.session_state.get("authed"):
         return
     controller = _cookie_controller()
-    token = _read_cookie(controller)
+    token = None if st.session_state.get("logged_out") else _read_cookie(controller)
     if isinstance(token, str) and auth.token_valid(password, token, secret=_cookie_secret()):
         st.session_state["authed"] = True
         return
@@ -149,13 +153,16 @@ def _require_login() -> None:
         entered = st.text_input(t.PASSWORD_LABEL, type="password", autocomplete="current-password")
         submitted = st.form_submit_button(t.LOGIN_BUTTON, use_container_width=True)
     if submitted:
-        _THROTTLE.wait()
-        ok = auth.check_password(entered, password)
-        _THROTTLE.record(ok=ok)
-        if ok:
+        # Check first, wait only on a wrong password: the shop typing the
+        # right one never queues behind a guesser (see auth.LoginThrottle).
+        if auth.check_password(entered, password):
+            _THROTTLE.record(ok=True)
             st.session_state["authed"] = True
+            st.session_state.pop("logged_out", None)
             _write_cookie(controller, password)
             st.rerun()
+        _THROTTLE.wait()
+        _THROTTLE.record(ok=False)
         st.error(t.WRONG_PASSWORD)
         if _THROTTLE.delay_seconds() > 0:
             st.error(t.LOGIN_THROTTLED)

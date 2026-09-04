@@ -43,6 +43,7 @@ import json
 import logging
 import re
 import time
+import zlib
 from collections.abc import Callable
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -277,8 +278,12 @@ class TiendanubeAdapter:
             return set()
         try:
             inflated = _gunzip_bounded(response.content, MAX_SITEMAP_BYTES)
-        except (gzip.BadGzipFile, OSError, EOFError):
-            xml = response.text  # served un-gzipped (or transport-decompressed)
+        except (gzip.BadGzipFile, OSError, EOFError, zlib.error):
+            # Not gzip (served plain, or transport-decompressed), truncated,
+            # or a gzip header over corrupt deflate data (zlib.error is not
+            # an OSError). Parse whatever text came back; a broken sitemap
+            # is not a source failure.
+            xml = response.text
         else:
             if inflated is None:
                 logger.warning(

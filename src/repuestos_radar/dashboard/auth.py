@@ -43,9 +43,10 @@ def signing_key(password: str, secret: str = "") -> bytes:
     """The token-signing key for this password and cookie secret.
 
     Cached: the KDF is deliberately expensive, and the app validates a cookie
-    once per browser session. The cache holds the derived key, not the
-    password, and only ever the handful of (password, secret) pairs a
-    process sees.
+    once per browser session. The cache is keyed by the (password, secret)
+    pair — the configured password, which already lives in the process
+    environment, never a password someone typed — so it only ever holds the
+    one or two pairs a process sees.
     """
     return hashlib.pbkdf2_hmac(
         "sha256", password.encode(), _KDF_SALT_PREFIX + secret.encode(), KDF_ITERATIONS
@@ -80,12 +81,18 @@ class LoginThrottle:
     Streamlit has no login rate limit of its own and a guesser can open a
     fresh session per attempt, so the count is global, not per session:
     after ``LOGIN_FREE_FAILURES`` wrong passwords in the last
-    ``LOGIN_FAILURE_WINDOW_SECONDS``, every further attempt first waits
+    ``LOGIN_FAILURE_WINDOW_SECONDS``, every further WRONG attempt waits
     2, 4, 8 … seconds, capped at ``MAX_LOGIN_DELAY_SECONDS``. The wait holds
     the throttle's lock, so parallel sessions queue behind it instead of
-    guessing side by side. A delay (never a lockout) keeps a guesser from
-    locking the shop out of its own dashboard; a correct password clears
-    the backlog. ``now`` and ``sleep`` are injectable for tests.
+    guessing side by side: the aggregate guess rate is bounded no matter
+    how many sessions a guesser opens. The caller checks the password
+    FIRST and only calls :meth:`wait` on a wrong one, so the shop typing
+    the right password never queues behind a guesser (a correct answer is
+    revealed by the response anyway; there is no timing oracle to hide),
+    and devices with a valid cookie never touch the throttle at all. A
+    delay (never a lockout) keeps a guesser from locking the shop out of its
+    own dashboard; a correct password clears the backlog. ``now`` and
+    ``sleep`` are injectable for tests.
     """
 
     def __init__(
@@ -99,29 +106,41 @@ class LoginThrottle:
         self._failures: deque[float] = deque()
         self._lock = threading.Lock()
 
-    def _current_delay(self) -> float:
-        """Caller holds the lock. 0 while the free attempts last, then 2, 4, 8 …"""
-        cutoff = self._now() - LOGIN_FAILURE_WINDOW_SECONDS
-        while self._failures and self._failures[0] < cutoff:
-            self._failures.popleft()
-        over = len(self._failures) - LOGIN_FREE_FAILURES
+    @staticmethod
+    def _delay_for(recent_failures: int) -> float:
+        """0 while the free attempts last, then 2, 4, 8 … capped."""
+        over = recent_failures - LOGIN_FREE_FAILURES
         if over < 0:
             return 0.0
         return min(float(2 ** (over + 1)), MAX_LOGIN_DELAY_SECONDS)
 
+    def _prune(self) -> None:
+        """Caller holds the lock."""
+        cutoff = self._now() - LOGIN_FAILURE_WINDOW_SECONDS
+        while self._failures and self._failures[0] < cutoff:
+            self._failures.popleft()
+
     def delay_seconds(self) -> float:
-        """Seconds the next attempt has to wait, given the recent failures."""
-        with self._lock:
-            return self._current_delay()
+        """Seconds the next wrong attempt would wait, given the recent failures.
+
+        Lock-free on purpose (a snapshot, no pruning): it is read while
+        rendering the login error, and must not queue behind a sleeper.
+        """
+        cutoff = self._now() - LOGIN_FAILURE_WINDOW_SECONDS
+        recent = sum(1 for stamp in tuple(self._failures) if stamp >= cutoff)
+        return self._delay_for(recent)
 
     def wait(self) -> None:
-        """Block for the current delay; call right before checking a password."""
+        """Block for the current delay; call after a WRONG password, before
+        recording it (see the class docstring for why not before every check)."""
         with self._lock:
-            self._sleep(self._current_delay())
+            self._prune()
+            self._sleep(self._delay_for(len(self._failures)))
 
     def record(self, *, ok: bool) -> None:
         with self._lock:
             if ok:
                 self._failures.clear()
             else:
+                self._prune()
                 self._failures.append(self._now())

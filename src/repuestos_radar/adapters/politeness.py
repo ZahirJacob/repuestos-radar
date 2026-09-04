@@ -140,6 +140,12 @@ class PoliteHttpClient:
                 response = self._bounded_request(
                     method, url, params=params, json=json, headers=headers
                 )
+            except httpx.TooManyRedirects as exc:
+                # A redirect loop is deterministic: retrying would only send
+                # the store another dozen requests for the same answer.
+                raise AdapterError(
+                    f"{self.slug}: giving up on {url} (TooManyRedirects: {exc})", slug=self.slug
+                ) from exc
             except httpx.HTTPError as exc:
                 failure = f"{type(exc).__name__}: {exc}"
                 last_exc = exc
@@ -168,7 +174,10 @@ class PoliteHttpClient:
         """One request, streamed, refusing a body past the size cap.
 
         The body is read in chunks after transport decompression, so the cap
-        is on what we would actually hold. The result is rebuilt as a plain
+        is on the decoded size. Peak memory is the cap plus one decoded
+        transport chunk: httpx inflates each raw 64 KiB chunk in full before
+        handing it over, and a pathological gzip chunk can inflate to ~60 MB
+        — transient, and still bounded. The result is rebuilt as a plain
         in-memory response (same status, headers, request) so callers keep
         using ``.text`` / ``.json()`` / ``.headers`` as before; the
         ``Content-Encoding``/``Content-Length`` headers are dropped because

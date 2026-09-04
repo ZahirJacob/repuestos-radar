@@ -284,8 +284,9 @@ from the cloud. Every page title carries the same radar as a small logo; motion 
 `prefers-reduced-motion`.
 
 The login is hardened for a public URL. Wrong passwords are throttled process-wide: after three
-in ten minutes, every further attempt (from any session) waits 2, 4, 8 … seconds, capped at 30,
-so a guesser is slowed down without ever locking the shop out. A correct password sets a 30-day
+in ten minutes, every further wrong attempt (from any session) waits 2, 4, 8 … seconds, capped at
+30, so a guesser is slowed down without ever locking the shop out; a correct password never waits.
+A correct password sets a 30-day
 "remember me" cookie (`secure`, `SameSite=Strict`) holding an expiry and an HMAC; the signing key
 is derived with a slow KDF (PBKDF2, 600k rounds) of the password plus the optional
 `APP_COOKIE_SECRET`, so a copied cookie is not an offline password-cracking oracle. Changing the
@@ -306,6 +307,10 @@ To run it locally:
 uv sync --extra dashboard
 DATABASE_URL=... APP_PASSWORD=... uv run streamlit run streamlit_app.py
 ```
+
+The remember-me cookie is `secure`, so over plain HTTP it only survives on `localhost` (Chrome and
+Firefox treat it as a secure context; Safari does not). Opening a local run from a phone over the
+LAN (`http://192.168.x.x:8501`) still logs in, it just asks for the password on every visit.
 
 In production the app runs on Streamlit Community Cloud, deployed from `main`. Its configuration
 lives in the app's secrets (app settings → Secrets in the Streamlit Cloud UI) — never committed to
