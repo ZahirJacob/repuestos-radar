@@ -1,5 +1,20 @@
-# App theme, read by Streamlit Community Cloud on deploy and by `streamlit run`
-# locally. Light and dark follow the phone's setting; the app menu still lets
+# App config, read by Streamlit Community Cloud on deploy and by `streamlit run`
+# locally.
+#
+# [client] and [browser] are hardening: a crash must not print a traceback
+# (file paths, SQL, the database host) to whoever is looking at the phone —
+# only the exception type; the full message still goes to the server log.
+# The minimal toolbar hides the deploy/fork/GitHub chrome from the client's
+# view, and no usage telemetry leaves the app.
+
+[client]
+showErrorDetails = "type"
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
+
+# Theme: light and dark follow the phone's setting; the app menu still lets
 # the user switch by hand. Colors come from the approved polish mockup; the
 # radar module keeps its own hard-coded palette in both themes on purpose.
 #
