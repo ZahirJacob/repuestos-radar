@@ -56,12 +56,15 @@ def _tls_connect_args(database_url: str) -> dict[str, str]:
     The hosted database (Neon) already refuses plaintext, but the credentials
     must never travel in the clear even if someone pastes a URL without the
     query string. An explicit ``sslmode`` in the URL is respected (a local
-    Postgres in a container may legitimately say ``disable``). Non-Postgres
-    URLs (SQLite in tests and the demo) get nothing.
+    Postgres in a container may legitimately say ``disable``); a blank one
+    (``?sslmode=``, a template whose variable was never set) counts as absent,
+    because SQLAlchemy drops blank query values and libpq would then fall
+    back to ``prefer``. Non-Postgres URLs (SQLite in tests and the demo) get
+    nothing.
     """
     if not database_url.startswith("postgresql"):
         return {}
-    if "sslmode" in parse_qs(urlsplit(database_url).query, keep_blank_values=True):
+    if "sslmode" in parse_qs(urlsplit(database_url).query):
         return {}
     return {"sslmode": "require"}
 

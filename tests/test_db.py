@@ -69,11 +69,15 @@ def test_postgres_connections_require_tls_unless_the_url_says_otherwise(monkeypa
 
     get_engine("postgresql://user:secret@db.example.neon.tech/radar").dispose()
     get_engine("postgresql://user:secret@db.example.neon.tech/radar?sslmode=disable").dispose()
+    # A blank value (templated `?sslmode=${PGSSLMODE}` with the variable unset)
+    # is dropped by SQLAlchemy, so it must count as absent, not as explicit.
+    get_engine("postgresql://user:secret@db.example.neon.tech/radar?sslmode=").dispose()
     get_engine(SQLITE_URL).dispose()
 
-    plain, explicit, sqlite = captured
+    plain, explicit, blank, sqlite = captured
     assert plain["connect_args"] == {"sslmode": "require"}
     assert "connect_args" not in explicit
+    assert blank["connect_args"] == {"sslmode": "require"}
     assert "connect_args" not in sqlite
 
 
