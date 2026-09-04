@@ -187,8 +187,14 @@ def status_line_html(text: str) -> str:
     """A one-line status in the login panel's mono style, for under a page
     title: monospace, letter-spaced, uppercase (via CSS, so the source text
     keeps its case for screen readers), radar green."""
+    # Selector specificity: Streamlit's markdown container styles `p` and
+    # `hr` through an emotion class (`.css-xxx p`, specificity 0,1,1), which
+    # would beat a bare `.rr-status` / `.rr-rule` (0,1,0) on every property
+    # both set — margins here, the border on the rule below. `.stMarkdown`
+    # is the container's stable class, so `.stMarkdown p.rr-status` (0,2,1)
+    # wins.
     css = (
-        f".rr-status{{font-family:{_MONO};font-size:.75rem;letter-spacing:.1em;"
+        f".stMarkdown p.rr-status{{font-family:{_MONO};font-size:.75rem;letter-spacing:.1em;"
         f"text-transform:uppercase;color:{RADAR};margin:-.25rem 0 .5rem}}"
     )
     return f'<style>{css}</style><p class="rr-status">{escape(text)}</p>'
@@ -196,9 +202,12 @@ def status_line_html(text: str) -> str:
 
 def rule_html() -> str:
     """A section break that fades to transparent over 48px at each end — the
-    design's rule, in place of Streamlit's plain divider."""
+    design's rule, in place of Streamlit's plain divider. (See status_line_html
+    for why the selector carries `.stMarkdown hr`: without it Streamlit's own
+    `border-bottom` would paint a solid line under the fade.)"""
     css = (
-        ".rr-rule{height:1px;border:0;margin:1rem 0;background:linear-gradient(90deg,transparent,"
+        ".stMarkdown hr.rr-rule{height:1px;border:0;margin:1rem 0;"
+        "background:linear-gradient(90deg,transparent,"
         f"{RADAR}4d 48px,{RADAR}4d calc(100% - 48px),transparent)}}"
     )
     return f'<style>{css}</style><hr class="rr-rule">'

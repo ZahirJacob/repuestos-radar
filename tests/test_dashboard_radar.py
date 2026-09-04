@@ -112,6 +112,11 @@ def test_rule_fades_at_both_ends():
     assert 'class="rr-rule"' in html
     assert "linear-gradient(90deg,transparent" in html and "48px" in html
     assert "<script" not in html
+    # Specificity pin: Streamlit's markdown container styles `hr` at (0,1,1)
+    # with a solid border-bottom; a bare `.rr-rule` would lose and a hard
+    # line would show under the fade. The same goes for the status line's `p`.
+    assert ".stMarkdown hr.rr-rule{" in html and "border:0" in html
+    assert ".stMarkdown p.rr-status{" in radar.status_line_html("x")
 
 
 def test_html_has_no_blank_lines_for_the_markdown_renderer():
