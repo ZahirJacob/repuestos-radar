@@ -38,6 +38,7 @@ HARD_REJECT: frozenset[str] = frozenset(
         "fundas",
         "carcasa",
         "case",
+        "tpu",  # Litoral's cases: "TPU TRANSPARENTE ANTIGOLPE IPHONE 13"
         "templado",
         "templados",
         "protector",

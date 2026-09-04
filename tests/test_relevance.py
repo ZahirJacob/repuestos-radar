@@ -408,3 +408,24 @@ def test_part_item_still_softens_singular_parlante_and_auricular() -> None:
     # SOFT is untouched: for a part item "parlante"/"auricular" cap at LOW_CONFIDENCE.
     result = classify("modulo iphone 13", "Modulo Iphone 13 con Parlante Auricular")
     assert result.relevance is Relevance.LOW_CONFIDENCE
+
+
+# Litoral titles its phone cases "TPU …" with no funda/case word: five of them
+# sat as MATCH for the "iphone 13" item until 2026-09-04.
+@pytest.mark.parametrize(
+    "title",
+    [
+        "TPU TRANSPARENTE ANTIGOLPE IPHONE 13 PRO 2MM",
+        "TPU MAGSAFE SPACE COLLECTION IPHONE 13 PROMAX",
+        "Tpu borde verde brillitos iPhone 13",
+    ],
+)
+def test_tpu_case_is_an_accessory_for_phone_and_part_items(title: str) -> None:
+    as_phone = classify("iphone 13", title, kind="phone")
+    assert as_phone.relevance is Relevance.REJECT
+    assert as_phone.reason == "accessory term: tpu"
+    # For a part item it behaves exactly like "funda" does today (softened to
+    # LOW_CONFIDENCE because the model words are present).
+    as_part = classify("bateria iphone 13", title)
+    assert as_part.relevance is Relevance.LOW_CONFIDENCE
+    assert as_part.reason == "accessory term tpu but part word present"
