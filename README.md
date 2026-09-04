@@ -287,7 +287,7 @@ The login is hardened for a public URL. Wrong passwords are throttled process-wi
 in ten minutes, every further attempt (from any session) waits 2, 4, 8 … seconds, capped at 30,
 so a guesser is slowed down without ever locking the shop out. A correct password sets a 30-day
 "remember me" cookie (`secure`, `SameSite=Strict`) holding an expiry and an HMAC; the signing key
-comes out of a slow KDF (PBKDF2, 600k rounds) of the password plus the optional
+is derived with a slow KDF (PBKDF2, 600k rounds) of the password plus the optional
 `APP_COOKIE_SECRET`, so a copied cookie is not an offline password-cracking oracle. Changing the
 password or the secret logs every device out; the sidebar's "Salir" button logs out just this one.
 `.streamlit/config.toml` keeps tracebacks out of the browser (`showErrorDetails = "type"`: the

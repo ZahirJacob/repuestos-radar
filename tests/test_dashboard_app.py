@@ -304,5 +304,5 @@ def test_login_attempts_are_throttled_process_wide(seeded_db, monkeypatch):
         at.text_input[0].set_value("wrong").run()
         at.button[0].set_value(True).run()
     assert slept == [0, 0, 0, 2]
-    assert any("esperá" in e.value for e in at.error)  # the throttled note is shown
+    assert any("Esperá" in e.value for e in at.error)  # the throttled note is shown
     assert "authed" not in at.session_state or not at.session_state["authed"]
