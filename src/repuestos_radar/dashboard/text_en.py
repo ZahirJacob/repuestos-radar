@@ -25,8 +25,8 @@ NAV_PRICES = "Prices"
 NAV_DETAIL = "Detail"
 NAV_SETTINGS = "Settings"
 
-# Freshness footer
-UPDATED_PREFIX = "Updated:"
+# Freshness line (under the home title)
+UPDATED_PREFIX = "Updated"
 UPDATED_TODAY = "Updated today"
 NO_DATA_AT_ALL = "No data stored yet."
 

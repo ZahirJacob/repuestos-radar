@@ -296,7 +296,7 @@ client sees the exception type, the server log keeps the message), hides the dep
 and turns off usage telemetry.
 
 The app's look follows the "1a Fiel" direction of the Claude Design project (2026-09-04): big
-cards with one action each, price first, Inter at medium weight, 8px radii, section rules that
+cards with one action each, price first, Inter at medium and semibold weights, 8px radii, section rules that
 fade at their ends, and the radar ground as the dark theme. Colors, type scale and font live in
 `.streamlit/config.toml`: a light and a dark theme built on the radar's green. The app follows
 the phone's setting, and the theme can be switched by hand from the app menu. The radar itself

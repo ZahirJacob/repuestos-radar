@@ -242,7 +242,7 @@ def test_freshness_line_sits_under_the_home_title_not_in_a_footer(seeded_db):
     at = _login(_app(seeded_db).run())
     status = [m.value for m in at.markdown if 'class="rr-status"' in m.value]
     assert len(status) == 1
-    assert "Actualizado: 01/09/2026" in status[0]
+    assert "Actualizado el 01/09/2026" in status[0]
     assert not [c for c in at.caption if c.value.startswith("Actualizado")]
 
 
@@ -251,7 +251,7 @@ def test_updated_line_says_today_or_the_date():
 
     assert home.updated_line(date(2026, 9, 4), today=date(2026, 9, 4)) == "Actualizado hoy"
     assert home.updated_line(date(2026, 9, 1), today=date(2026, 9, 4)) == (
-        "Actualizado: 01/09/2026"
+        "Actualizado el 01/09/2026"
     )
     assert home.updated_line(None, today=date(2026, 9, 4)) == "Todavía no hay datos guardados."
 
