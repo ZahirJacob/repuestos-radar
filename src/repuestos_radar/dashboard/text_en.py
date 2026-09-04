@@ -27,6 +27,7 @@ NAV_SETTINGS = "Settings"
 
 # Freshness footer
 UPDATED_PREFIX = "Updated:"
+UPDATED_TODAY = "Updated today"
 NO_DATA_AT_ALL = "No data stored yet."
 
 # Home

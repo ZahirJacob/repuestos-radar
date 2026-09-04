@@ -226,8 +226,34 @@ def test_home_card_shows_margin_and_no_warning_for_clean_data(seeded_db):
     body = _body(at)
     assert ":green[↑ Ganás $64.300]" in body  # 85000 - 20700
     assert "Mejor precio en Celuphone (Incell/TFT)" in body
-    assert "📍 Mejor precio" not in body  # the distance pill carries the pin
+    assert "◎ Mejor precio" not in body  # the distance pill carries the marker
     assert "revisar" not in body
+
+
+def test_home_card_title_is_the_h5_of_the_design(seeded_db):
+    """Card query at 21px/500 = the fifth heading level of the theme scale
+    (st.subheader would be the 24px tier heading)."""
+    at = _login(_app(seeded_db).run())
+    assert any(m.value == "##### modulo a32" for m in at.markdown)
+    assert not at.subheader
+
+
+def test_freshness_line_sits_under_the_home_title_not_in_a_footer(seeded_db):
+    at = _login(_app(seeded_db).run())
+    status = [m.value for m in at.markdown if 'class="rr-status"' in m.value]
+    assert len(status) == 1
+    assert "Actualizado: 01/09/2026" in status[0]
+    assert not [c for c in at.caption if c.value.startswith("Actualizado")]
+
+
+def test_updated_line_says_today_or_the_date():
+    from repuestos_radar.dashboard import home
+
+    assert home.updated_line(date(2026, 9, 4), today=date(2026, 9, 4)) == "Actualizado hoy"
+    assert home.updated_line(date(2026, 9, 1), today=date(2026, 9, 4)) == (
+        "Actualizado: 01/09/2026"
+    )
+    assert home.updated_line(None, today=date(2026, 9, 4)) == "Todavía no hay datos guardados."
 
 
 def test_home_card_caption_and_margin_lines():
@@ -237,7 +263,7 @@ def test_home_card_caption_and_margin_lines():
         "Mejor precio en Celuphone (Original)"
     )
     assert home._best_caption("Celuphone", "Original", "1,8 km") == (
-        "Mejor precio en Celuphone (Original) :gray-background[📍\u00a01,8 km]"
+        "Mejor precio en Celuphone (Original) :gray-background[◎\u00a01,8 km]"
     )
     assert home._margin_line(Decimal("14300")) == ":green[↑ Ganás $14.300]"
     assert home._margin_line(Decimal("0")) == ":green[↑ Ganás $0]"

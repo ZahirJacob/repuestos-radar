@@ -1,5 +1,6 @@
 """Precios: one card per tracked part — best price, margin, warnings at a glance."""
 
+from datetime import date
 from decimal import Decimal
 
 import streamlit as st
@@ -7,13 +8,24 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from repuestos_radar.analysis import TierAnalysis, analyze_item, latest_day, listings_for_day
+from repuestos_radar.clock import argentina_today
 from repuestos_radar.dashboard import data, radar
 from repuestos_radar.dashboard.detail import distance_from_shop, distance_pill, source_names
 from repuestos_radar.dashboard.text import t
 from repuestos_radar.margin import margins_for
 from repuestos_radar.models import ServicePrice, TrackedItem
 from repuestos_radar.relevance import Relevance
-from repuestos_radar.report import format_ars
+from repuestos_radar.report import escape_md_dollars, format_ars, format_day
+
+
+def updated_line(day: date | None, *, today: date) -> str:
+    """The freshness line under the title: "Actualizado hoy" when the newest
+    stored day is today, the date otherwise, the no-data notice when empty."""
+    if day is None:
+        return t.NO_DATA_AT_ALL
+    if day == today:
+        return t.UPDATED_TODAY
+    return f"{t.UPDATED_PREFIX} {format_day(day)}"
 
 
 def _best_caption(store: str, tier_label: str, distance_text: str | None) -> str:
@@ -60,12 +72,16 @@ def render() -> None:
 
     radar.page_title(t.NAV_PRICES)
     with data.open_session() as session:
+        radar.status_line(updated_line(data.overall_latest_day(session), today=argentina_today()))
         items = session.scalars(
             select(TrackedItem).where(TrackedItem.active).order_by(TrackedItem.id)
         ).all()
         for item in items:
             with st.container(border=True):
-                st.subheader(item.query)
+                # h5 (21px/500 in the theme scale): the card's name, quieter
+                # than the price below it. The query is admin-typed, so `$`
+                # is escaped like every other markdown string.
+                st.markdown(f"##### {escape_md_dollars(item.query)}")
                 day = latest_day(session, item.id)
                 analyses = analyze_item(listings_for_day(session, item.id, day)) if day else []
                 best = _best_offer(analyses)

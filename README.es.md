@@ -324,9 +324,15 @@ el botón "Salir" de la barra lateral la cierra solo en ese dispositivo.
 "type"`: el cliente ve solo el tipo de excepción, el log del servidor guarda el mensaje), oculta
 la barra de deploy/fork y apaga la telemetría de uso.
 
-Los colores de la app viven en `.streamlit/config.toml`: un tema claro y uno oscuro construidos
-sobre el verde del radar. La app sigue la configuración del celular, y el tema se puede cambiar a
-mano desde el menú de la app. El radar conserva su propia paleta en los dos temas. En la página de
+La app sigue la dirección "1a Fiel" del proyecto en Claude Design (2026-09-04): tarjetas grandes
+con una sola acción cada una, el precio primero, Inter en peso medio, radios de 8px, líneas
+divisorias que se desvanecen en las puntas y el fondo del radar como tema oscuro. Los colores, la
+escala tipográfica y la fuente viven en `.streamlit/config.toml`: un tema claro y uno oscuro
+construidos sobre el verde del radar. La app sigue la configuración del celular, y el tema se
+puede cambiar a mano desde el menú de la app. El radar conserva su propia paleta en los dos
+temas. Inter viaja con la app (`static/fonts`, licencia SIL Open Font) a través del servicio de
+archivos estáticos de Streamlit, así que el celular la descarga una sola vez, la guarda en caché
+y nunca consulta a un proveedor de fuentes. En la página de
 detalle, "Usar mi ubicación" le pide al navegador la posición del celular a través de
 `streamlit-js-eval`. La lectura se conserva solo durante la sesión y nunca se guarda; "Volver al
 local" la descarta.

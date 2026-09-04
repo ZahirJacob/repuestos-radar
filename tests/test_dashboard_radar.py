@@ -94,7 +94,32 @@ def test_page_title_is_logo_plus_h1():
     assert "<h1>&lt;i&gt;</h1>" in radar.page_title_html("<i>")
 
 
+def test_status_line_is_the_mono_uppercase_radar_green_line():
+    """The freshness line under a page title, in the login panel's status
+    style: monospace, letter-spaced, uppercase via CSS, radar green."""
+    html = radar.status_line_html("Actualizado: 01/09/2026")
+    assert 'class="rr-status"' in html
+    assert "Actualizado: 01/09/2026" in html
+    assert "text-transform:uppercase" in html and "ui-monospace" in html
+    assert radar.RADAR in html
+    assert "&lt;b&gt;" in radar.status_line_html("<b>")
+
+
+def test_rule_fades_at_both_ends():
+    """The design's rules fade to transparent over 48px at each end instead
+    of stopping cleanly."""
+    html = radar.rule_html()
+    assert 'class="rr-rule"' in html
+    assert "linear-gradient(90deg,transparent" in html and "48px" in html
+    assert "<script" not in html
+
+
 def test_html_has_no_blank_lines_for_the_markdown_renderer():
     # A blank line would end the markdown HTML block and split the panel.
-    for html in (radar.login_panel_html(STATUS), radar.page_title_html("Precios")):
+    for html in (
+        radar.login_panel_html(STATUS),
+        radar.page_title_html("Precios"),
+        radar.status_line_html("x"),
+        radar.rule_html(),
+    ):
         assert "\n\n" not in html

@@ -295,9 +295,14 @@ password or the secret logs every device out; the sidebar's "Salir" button logs 
 client sees the exception type, the server log keeps the message), hides the deploy/fork toolbar,
 and turns off usage telemetry.
 
-The app's colors live in `.streamlit/config.toml`: a light and a dark theme built on the radar's
-green. The app follows the phone's setting, and the theme can be switched by hand from the app
-menu. The radar itself keeps its own palette in both themes. On the detail page, "Usar mi
+The app's look follows the "1a Fiel" direction of the Claude Design project (2026-09-04): big
+cards with one action each, price first, Inter at medium weight, 8px radii, section rules that
+fade at their ends, and the radar ground as the dark theme. Colors, type scale and font live in
+`.streamlit/config.toml`: a light and a dark theme built on the radar's green. The app follows
+the phone's setting, and the theme can be switched by hand from the app menu. The radar itself
+keeps its own palette in both themes. Inter is shipped with the app (`static/fonts`, SIL Open
+Font License) through Streamlit's static serving, so the phone downloads it once, caches it,
+and never calls a font host. On the detail page, "Usar mi
 ubicación" asks the browser for the phone's position through `streamlit-js-eval`. The reading is
 kept for the session only and never stored; "Volver al local" drops it.
 
