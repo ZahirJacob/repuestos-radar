@@ -8,19 +8,25 @@ from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 
 from repuestos_radar.analysis import analyze_item, listings_for_day
+from repuestos_radar.dashboard import demo
 from repuestos_radar.db import get_engine, get_session_factory, init_db
 from repuestos_radar.models import Listing
 
 
 @st.cache_resource
 def cached_engine() -> Engine:
+    if demo.is_demo():
+        return demo.engine()
     engine = get_engine()
     init_db(engine)
     return engine
 
 
 def open_session() -> Session:
-    return get_session_factory(cached_engine())()
+    engine = cached_engine()
+    if demo.is_demo():
+        demo.refresh_if_stale(engine, date.today())
+    return get_session_factory(engine)()
 
 
 def overall_latest_day(session: Session) -> date | None:

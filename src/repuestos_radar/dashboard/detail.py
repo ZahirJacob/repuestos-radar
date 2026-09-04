@@ -19,11 +19,12 @@ from repuestos_radar.analysis import (
     listings_for_day,
     tier_trends,
 )
-from repuestos_radar.dashboard import data, distance, radar, text_es
+from repuestos_radar.dashboard import data, distance, radar
+from repuestos_radar.dashboard.text import t
 from repuestos_radar.margin import TierMargin, margins_for
 from repuestos_radar.models import ServicePrice, TrackedItem
 from repuestos_radar.relevance import Relevance
-from repuestos_radar.report import TIER_LABELS_ES, escape_md_dollars, md_ars
+from repuestos_radar.report import escape_md_dollars, md_ars
 from repuestos_radar.sources import load_sources
 
 
@@ -42,8 +43,8 @@ def _trend_chart(series: Sequence[tuple[date, Decimal]]) -> alt.Chart:
     """
     frame = pd.DataFrame(
         {
-            text_es.TREND_CHART_DAY_COLUMN: [d for d, _ in series],
-            text_es.TREND_CHART_PRICE_COLUMN: [float(p) for _, p in series],
+            t.TREND_CHART_DAY_COLUMN: [d for d, _ in series],
+            t.TREND_CHART_PRICE_COLUMN: [float(p) for _, p in series],
         }
     )
     return (
@@ -51,15 +52,15 @@ def _trend_chart(series: Sequence[tuple[date, Decimal]]) -> alt.Chart:
         .mark_line(point=True)
         .encode(
             x=alt.X(
-                text_es.TREND_CHART_DAY_COLUMN,
+                t.TREND_CHART_DAY_COLUMN,
                 type="temporal",
                 axis=alt.Axis(format="%d/%m"),
-                title=text_es.TREND_CHART_DAY_COLUMN,
+                title=t.TREND_CHART_DAY_COLUMN,
             ),
             y=alt.Y(
-                text_es.TREND_CHART_PRICE_COLUMN,
+                t.TREND_CHART_PRICE_COLUMN,
                 type="quantitative",
-                title=text_es.TREND_CHART_PRICE_COLUMN,
+                title=t.TREND_CHART_PRICE_COLUMN,
             ),
         )
     )
@@ -225,12 +226,12 @@ def _reference_point() -> tuple[float, float] | None:
     current = state.get("reference_point")
     with st.container(border=True):
         if current is not None:
-            st.markdown(f"📍 {text_es.FROM_MY_LOCATION}")
+            st.markdown(f"📍 {t.FROM_MY_LOCATION}")
         else:
-            st.markdown(f"📍 {text_es.FROM_SHOP}" if shop else f"📍 {text_es.NO_SHOP_LOCATION}")
+            st.markdown(f"📍 {t.FROM_SHOP}" if shop else f"📍 {t.NO_SHOP_LOCATION}")
         use_column, back_column = st.columns(2)
         if use_column.button(
-            text_es.USE_MY_LOCATION,
+            t.USE_MY_LOCATION,
             type="primary",
             icon=":material/my_location:",
             width="stretch",
@@ -238,7 +239,7 @@ def _reference_point() -> tuple[float, float] | None:
         ):
             _request_location(state)
         if back_column.button(
-            text_es.BACK_TO_SHOP,
+            t.BACK_TO_SHOP,
             type="secondary",
             icon=":material/storefront:",
             width="stretch",
@@ -246,7 +247,7 @@ def _reference_point() -> tuple[float, float] | None:
             _back_to_shop(state)
             st.rerun()
         if state.get("geo_denied"):
-            st.caption(text_es.LOCATION_DENIED)
+            st.caption(t.LOCATION_DENIED)
         if state.get("geo_requested"):
             answer = _ask_browser(state.get("geo_request_id", 0))
             if _answer_is_denied(answer):
@@ -274,25 +275,25 @@ def _offer_line(offer: StoreOffer, names: dict[str, str], distance_text: str | N
         parts.append(distance_pill(distance_text))
     # Non-breaking space after the marker, same reason as in distance_pill.
     if offer.outlier:
-        parts.append(f":orange-background[⚠\u00a0{text_es.OUTLIER_WARNING}]")
+        parts.append(f":orange-background[⚠\u00a0{t.OUTLIER_WARNING}]")
     if offer.relevance == Relevance.LOW_CONFIDENCE.value:
-        parts.append(f":orange-background[⚠\u00a0{text_es.LOW_CONFIDENCE_WARNING}]")
+        parts.append(f":orange-background[⚠\u00a0{t.LOW_CONFIDENCE_WARNING}]")
     return f"#### {md_ars(offer.price)}\n" + " ".join(parts)
 
 
 def _tier_heading(analysis: TierAnalysis) -> str:
     """``Original · 3 tiendas``: the tier label with its store count in gray."""
     count = (
-        text_es.TIER_STORE_COUNT_ONE
+        t.TIER_STORE_COUNT_ONE
         if analysis.store_count == 1
-        else text_es.TIER_STORE_COUNT.format(count=analysis.store_count)
+        else t.TIER_STORE_COUNT.format(count=analysis.store_count)
     )
-    return f"{TIER_LABELS_ES[analysis.tier]} :gray[· {count}]"
+    return f"{t.TIER_LABELS[analysis.tier]} :gray[· {count}]"
 
 
 def _sort_key(choice: str | None) -> str:
     """Segmented-control choice to sort key; nothing selected means price."""
-    return "distancia" if choice == text_es.SORT_DISTANCE else "precio"
+    return "distancia" if choice == t.SORT_DISTANCE else "precio"
 
 
 def _fair_price_highlight(analysis: TierAnalysis) -> str:
@@ -303,15 +304,15 @@ def _fair_price_highlight(analysis: TierAnalysis) -> str:
 
 def _fair_price_line(analysis: TierAnalysis) -> str:
     if analysis.basis == BASIS_MEDIAN:
-        line = f"{text_es.FAIR_PRICE_PREFIX} **{md_ars(analysis.fair_price)}**"
+        line = f"{t.FAIR_PRICE_PREFIX} **{md_ars(analysis.fair_price)}**"
         if analysis.store_count <= 3:
-            line += " — " + text_es.FAIR_PRICE_RANGE.format(
+            line += " — " + t.FAIR_PRICE_RANGE.format(
                 low=md_ars(analysis.price_min),
                 high=md_ars(analysis.price_max),
                 count=analysis.store_count,
             )
         return line
-    return f"*{text_es.SINGLE_STORE_NOTE}*"
+    return f"*{t.SINGLE_STORE_NOTE}*"
 
 
 def _select_item(session) -> TrackedItem | None:
@@ -324,7 +325,7 @@ def _select_item(session) -> TrackedItem | None:
     selected = st.session_state.get("selected_item_id")
     index = list(by_id).index(selected) if selected in by_id else 0
     choice = st.selectbox(
-        text_es.PICK_ITEM, list(by_id), index=index, format_func=lambda i: by_id[i].query
+        t.PICK_ITEM, list(by_id), index=index, format_func=lambda i: by_id[i].query
     )
     st.session_state["selected_item_id"] = choice
     return by_id[choice]
@@ -333,14 +334,14 @@ def _select_item(session) -> TrackedItem | None:
 def _margin_line(service: ServicePrice, tier_margin: TierMargin, names: dict[str, str]) -> str:
     """One repair's margin against one tier, as markdown (both prices and the
     admin-typed label go through the dollar escape)."""
-    verb = text_es.MARGIN_VERB_GAIN if tier_margin.margin >= 0 else text_es.MARGIN_VERB_LOSS
-    return text_es.MARGIN_LINE.format(
+    verb = t.MARGIN_VERB_GAIN if tier_margin.margin >= 0 else t.MARGIN_VERB_LOSS
+    return t.MARGIN_LINE.format(
         label=escape_md_dollars(service.label),
         service=md_ars(service.price_ars),
         verb=verb,
         amount=md_ars(abs(tier_margin.margin)),
         store=names.get(tier_margin.part_source, tier_margin.part_source),
-        tier=TIER_LABELS_ES[tier_margin.tier],
+        tier=t.TIER_LABELS[tier_margin.tier],
     )
 
 
@@ -348,23 +349,23 @@ def _render_margins(
     services: Sequence[ServicePrice], analyses: Sequence[TierAnalysis], names: dict[str, str]
 ) -> None:
     with st.container(border=True):
-        st.subheader(text_es.MARGIN_HEADER)
+        st.subheader(t.MARGIN_HEADER)
         for service in services:
             for tier_margin in margins_for(service.price_ars, analyses):
                 st.markdown(_margin_line(service, tier_margin, names))
 
 
 def render() -> None:
-    radar.page_title(text_es.NAV_DETAIL)
+    radar.page_title(t.NAV_DETAIL)
     names = source_names()
     with data.open_session() as session:
         item = _select_item(session)
         if item is None:
-            st.markdown(f"*{text_es.NO_DATA_AT_ALL}*")
+            st.markdown(f"*{t.NO_DATA_AT_ALL}*")
             return
         day = latest_day(session, item.id)
         if day is None:
-            st.markdown(f"*{text_es.NO_DATA_TODAY}*")
+            st.markdown(f"*{t.NO_DATA_TODAY}*")
             return
         analyses = analyze_item(listings_for_day(session, item.id, day))
 
@@ -372,9 +373,9 @@ def render() -> None:
         coords = _store_coords()
         sort_key = _sort_key(
             st.segmented_control(
-                text_es.SORT_LABEL,
-                [text_es.SORT_PRICE, text_es.SORT_DISTANCE],
-                default=text_es.SORT_PRICE,
+                t.SORT_LABEL,
+                [t.SORT_PRICE, t.SORT_DISTANCE],
+                default=t.SORT_PRICE,
                 selection_mode="single",
             )
         )
@@ -398,7 +399,7 @@ def render() -> None:
             _render_margins(services, analyses, names)
 
         st.divider()
-        st.subheader(text_es.TREND_HEADER)
+        st.subheader(t.TREND_HEADER)
         for analysis in analyses:
             points = tier_trends(session, item.id, analysis.tier, day)
             shown = [p for p in points if p.direction]
@@ -408,13 +409,13 @@ def render() -> None:
                     # The real gap, not the nominal window — a stored day can
                     # land up to _TREND_TOLERANCE_DAYS off the target
                     # (report.py does the same for the exact same reason).
-                    + text_es.TREND_VS.format(days=(day - p.compared_date).days)
+                    + t.TREND_VS.format(days=(day - p.compared_date).days)
                     for p in shown
                 )
-                st.caption(f"{TIER_LABELS_ES[analysis.tier]}: {trend_text}")
-            with st.expander(f"{text_es.TREND_CHART_LABEL} — {TIER_LABELS_ES[analysis.tier]}"):
+                st.caption(f"{t.TIER_LABELS[analysis.tier]}: {trend_text}")
+            with st.expander(f"{t.TREND_CHART_LABEL} — {t.TIER_LABELS[analysis.tier]}"):
                 series = data.fair_price_series(session, item.id, analysis.tier, day)
                 if len(series) >= 2:
                     st.altair_chart(_trend_chart(series), width="stretch")
                 else:
-                    st.markdown(f"*{text_es.NO_TREND}*")
+                    st.markdown(f"*{t.NO_TREND}*")

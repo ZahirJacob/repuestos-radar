@@ -10,7 +10,8 @@ import streamlit as st
 from sqlalchemy.orm import Session
 
 from repuestos_radar import services, tracked
-from repuestos_radar.dashboard import data, quicksearch, radar, text_es
+from repuestos_radar.dashboard import data, demo, quicksearch, radar
+from repuestos_radar.dashboard.text import t
 from repuestos_radar.models import KIND_PART, KIND_PHONE, TrackedItem
 from repuestos_radar.report import escape_md_dollars, md_ars
 from repuestos_radar.sources import load_sources
@@ -31,9 +32,9 @@ def _pop_flash(state) -> tuple[str, str] | None:
 
 def _price_error(reason: str | None) -> str | None:
     if reason == "not a number":
-        return text_es.PRICE_NOT_A_NUMBER
+        return t.PRICE_NOT_A_NUMBER
     if reason == "not positive":
-        return text_es.PRICE_NOT_POSITIVE
+        return t.PRICE_NOT_POSITIVE
     return None
 
 
@@ -48,15 +49,15 @@ def _add_service(
     """
     label = label.strip()
     if not label:
-        return text_es.LABEL_EMPTY, None
+        return t.LABEL_EMPTY, None
     price, reason = services.parse_price(raw_price)
     if price is None:
         return _price_error(reason), None
     _, status = services.add_service(session, label, item_id, price)
     session.commit()
     if status == services.UPDATED:
-        return None, text_es.SERVICE_UPDATED_EXISTING
-    return None, text_es.SERVICE_SAVED
+        return None, t.SERVICE_UPDATED_EXISTING
+    return None, t.SERVICE_SAVED
 
 
 def _set_service_price(session: Session, service_id: int, raw_price: str) -> str | None:
@@ -67,7 +68,7 @@ def _set_service_price(session: Session, service_id: int, raw_price: str) -> str
     if status == services.NOT_FOUND:
         # The row vanished under us (deleted from another session/CLI) —
         # "Guardado." would be a lie.
-        return text_es.SERVICE_NOT_FOUND
+        return t.SERVICE_NOT_FOUND
     session.commit()
     return None
 
@@ -76,58 +77,56 @@ def _skipped_note(report: quicksearch.QuickSearchReport) -> str | None:
     names = [s.name for s in report.sources if not s.searched]
     if not names:
         return None
-    return text_es.QUICK_SEARCH_SKIPPED_NOTE.format(names=", ".join(names))
+    return t.QUICK_SEARCH_SKIPPED_NOTE.format(names=", ".join(names))
 
 
 def _blocked_note(report: quicksearch.QuickSearchReport) -> str | None:
     if not report.blocked:
         return None
     names = [s.name for s in report.blocked]
-    return text_es.QUICK_SEARCH_BLOCKED_NOTE.format(names=", ".join(names))
+    return t.QUICK_SEARCH_BLOCKED_NOTE.format(names=", ".join(names))
 
 
 def _render_report(report: quicksearch.QuickSearchReport) -> None:
     if report.capped:
-        st.info(text_es.QUICK_SEARCH_CAP.format(cap=quicksearch.DAILY_CAP))
+        st.info(t.QUICK_SEARCH_CAP.format(cap=quicksearch.DAILY_CAP))
         return
     for source_report in report.sources:
         if source_report.searched and source_report.failure is not None:
-            st.warning(text_es.QUICK_SEARCH_SOURCE_FAILED.format(name=source_report.name))
+            st.warning(t.QUICK_SEARCH_SOURCE_FAILED.format(name=source_report.name))
     for note in (_skipped_note(report), _blocked_note(report)):
         if note:
             st.caption(note)
-    st.success(text_es.QUICK_SEARCH_DONE)
+    st.success(t.QUICK_SEARCH_DONE)
 
 
 def _render_quick_search(session: Session) -> None:
-    st.subheader(text_es.QUICK_SEARCH_HEADER)
+    st.subheader(t.QUICK_SEARCH_HEADER)
     used = quicksearch.runs_today(session)
-    st.caption(text_es.QUICK_SEARCH_USED.format(used=used, cap=quicksearch.DAILY_CAP))
+    st.caption(t.QUICK_SEARCH_USED.format(used=used, cap=quicksearch.DAILY_CAP))
     items = {item.id: item.query for item in tracked.list_items(session) if item.active}
     if not items:
-        st.caption(text_es.QUICK_SEARCH_NO_ITEMS)
+        st.caption(t.QUICK_SEARCH_NO_ITEMS)
         return
     preselect = st.session_state.get("quick-search-item")
     ids = list(items)
     index = ids.index(preselect) if preselect in items else 0
-    item_id = st.selectbox(text_es.QUICK_SEARCH_ITEM_FIELD, ids, index=index, format_func=items.get)
+    item_id = st.selectbox(t.QUICK_SEARCH_ITEM_FIELD, ids, index=index, format_func=items.get)
     capped = used >= quicksearch.DAILY_CAP
     if capped:
-        st.info(text_es.QUICK_SEARCH_CAP.format(cap=quicksearch.DAILY_CAP))
-    if st.button(text_es.QUICK_SEARCH_BUTTON, disabled=capped, use_container_width=True):
+        st.info(t.QUICK_SEARCH_CAP.format(cap=quicksearch.DAILY_CAP))
+    if st.button(t.QUICK_SEARCH_BUTTON, disabled=capped, use_container_width=True):
         item = session.get(TrackedItem, item_id)
-        with st.status(text_es.QUICK_SEARCH_RUNNING, expanded=True) as status:
+        with st.status(t.QUICK_SEARCH_RUNNING, expanded=True) as status:
             try:
                 report = quicksearch.quick_search(
                     session,
                     item,
                     load_sources(),
-                    progress=lambda name: status.write(
-                        text_es.QUICK_SEARCH_PROGRESS.format(name=name)
-                    ),
+                    progress=lambda name: status.write(t.QUICK_SEARCH_PROGRESS.format(name=name)),
                 )
             except quicksearch.QuickSearchBusy:
-                status.update(label=text_es.QUICK_SEARCH_BUSY, state="error")
+                status.update(label=t.QUICK_SEARCH_BUSY, state="error")
                 return
         # Rerun so the "Búsquedas de hoy" counter and the button's disabled
         # state reflect the run just recorded; the report is stashed and
@@ -145,42 +144,46 @@ def _service_line(label: str, price_ars: Decimal) -> str:
     return f"**{escape_md_dollars(label)}** — {md_ars(price_ars)}"
 
 
-def _render_services(session: Session) -> None:
-    st.subheader(text_es.SERVICES_HEADER)
+def _render_services(session: Session, read_only: bool = False) -> None:
+    st.subheader(t.SERVICES_HEADER)
     items = {item.id: item.query for item in tracked.list_items(session)}
     for service in services.list_services(session):
         with st.container(border=True):
             st.markdown(_service_line(service.label, service.price_ars))
-            with st.expander(text_es.SERVICE_EDIT):
+            if read_only:
+                continue
+            with st.expander(t.SERVICE_EDIT):
                 raw = st.text_input(
-                    text_es.SERVICE_PRICE_FIELD,
+                    t.SERVICE_PRICE_FIELD,
                     value=str(service.price_ars),
                     key=f"price-{service.id}",
                 )
-                if st.button(text_es.SERVICE_SAVE, key=f"save-{service.id}"):
+                if st.button(t.SERVICE_SAVE, key=f"save-{service.id}"):
                     error = _set_service_price(session, service.id, raw)
                     if error:
                         st.error(error)
                     else:
-                        _flash(st.session_state, text_es.SERVICE_SAVED)
+                        _flash(st.session_state, t.SERVICE_SAVED)
                         st.rerun()
                 confirm_key = f"confirm-service-{service.id}"
                 if st.session_state.get(confirm_key):
-                    st.warning(text_es.SERVICE_CONFIRM)
+                    st.warning(t.SERVICE_CONFIRM)
                     yes, no = st.columns(2)
-                    if yes.button(text_es.SERVICE_CONFIRM_YES, key=f"yes-{service.id}"):
+                    if yes.button(t.SERVICE_CONFIRM_YES, key=f"yes-{service.id}"):
                         services.remove_service(session, service.id)
                         session.commit()
                         st.session_state.pop(confirm_key)
-                        _flash(st.session_state, text_es.SERVICE_REMOVED)
+                        _flash(st.session_state, t.SERVICE_REMOVED)
                         st.rerun()
-                    if no.button(text_es.SERVICE_CONFIRM_NO, key=f"no-{service.id}"):
+                    if no.button(t.SERVICE_CONFIRM_NO, key=f"no-{service.id}"):
                         st.session_state.pop(confirm_key)
                         st.rerun()
-                elif st.button(text_es.SERVICE_REMOVE, key=f"rm-{service.id}"):
+                elif st.button(t.SERVICE_REMOVE, key=f"rm-{service.id}"):
                     st.session_state[confirm_key] = True
                     st.rerun()
 
+    if read_only:
+        return
     # No clear_on_submit: it would wipe all three fields on a validation
     # error too (a price typo costing the label and part again). Instead the
     # success path clears the text fields itself, via a flag consumed above
@@ -189,15 +192,15 @@ def _render_services(session: Session) -> None:
         st.session_state.pop("add-service-label", None)
         st.session_state.pop("add-service-price", None)
     with st.form("add-service"):
-        st.markdown(f"**{text_es.SERVICE_ADD_HEADER}**")
-        label = st.text_input(text_es.SERVICE_LABEL_FIELD, key="add-service-label")
+        st.markdown(f"**{t.SERVICE_ADD_HEADER}**")
+        label = st.text_input(t.SERVICE_LABEL_FIELD, key="add-service-label")
         item_id = (
-            st.selectbox(text_es.SERVICE_ITEM_FIELD, list(items), format_func=items.get)
+            st.selectbox(t.SERVICE_ITEM_FIELD, list(items), format_func=items.get)
             if items
             else None
         )
-        raw_price = st.text_input(text_es.SERVICE_PRICE_FIELD, key="add-service-price")
-        if st.form_submit_button(text_es.SERVICE_ADD_BUTTON) and item_id is not None:
+        raw_price = st.text_input(t.SERVICE_PRICE_FIELD, key="add-service-price")
+        if st.form_submit_button(t.SERVICE_ADD_BUTTON) and item_id is not None:
             error, saved = _add_service(session, label, item_id, raw_price)
             if error:
                 st.error(error)
@@ -207,71 +210,82 @@ def _render_services(session: Session) -> None:
                 st.rerun()
 
 
-# Radio labels (Spanish, first one is the default) -> stored kind value.
-_KIND_BY_LABEL = {
-    text_es.TRACKED_KIND_PART: KIND_PART,
-    text_es.TRACKED_KIND_PHONE: KIND_PHONE,
-}
+def _kind_by_label() -> dict[str, str]:
+    """Radio labels in the current language (first one is the default) ->
+    stored kind value."""
+    return {t.TRACKED_KIND_PART: KIND_PART, t.TRACKED_KIND_PHONE: KIND_PHONE}
 
 
 def _tracked_line(item: TrackedItem) -> str:
     """The query in bold, plus a small tag for phone items; parts get nothing extra."""
     line = f"**{item.query}**"
     if item.kind == KIND_PHONE:
-        line += f" :gray-background[{text_es.TRACKED_KIND_PHONE_TAG}]"
+        line += f" :gray-background[{t.TRACKED_KIND_PHONE_TAG}]"
     return line
 
 
-def _render_tracked(session: Session) -> None:
-    st.subheader(text_es.TRACKED_HEADER)
+def _render_tracked(session: Session, read_only: bool = False) -> None:
+    st.subheader(t.TRACKED_HEADER)
     for item in tracked.list_items(session):
         if not item.active:
             continue
         with st.container(border=True):
             st.markdown(_tracked_line(item))
+            if read_only:
+                continue
             confirm_key = f"confirm-tracked-{item.id}"
             if st.session_state.get(confirm_key):
-                st.warning(text_es.TRACKED_STOP_WARNING)
+                st.warning(t.TRACKED_STOP_WARNING)
                 yes, no = st.columns(2)
-                if yes.button(text_es.TRACKED_CONFIRM_YES, key=f"tyes-{item.id}"):
+                if yes.button(t.TRACKED_CONFIRM_YES, key=f"tyes-{item.id}"):
                     tracked.set_active(session, item.id, False)
                     session.commit()
                     st.session_state.pop(confirm_key)
-                    _flash(st.session_state, text_es.TRACKED_STOPPED)
+                    _flash(st.session_state, t.TRACKED_STOPPED)
                     st.rerun()
-                if no.button(text_es.SERVICE_CONFIRM_NO, key=f"tno-{item.id}"):
+                if no.button(t.SERVICE_CONFIRM_NO, key=f"tno-{item.id}"):
                     st.session_state.pop(confirm_key)
                     st.rerun()
-            elif st.button(text_es.TRACKED_STOP, key=f"tstop-{item.id}"):
+            elif st.button(t.TRACKED_STOP, key=f"tstop-{item.id}"):
                 st.session_state[confirm_key] = True
                 st.rerun()
 
+    if read_only:
+        return
     with st.form("add-tracked", clear_on_submit=True):
-        st.markdown(f"**{text_es.TRACKED_ADD_HEADER}**")
-        query = st.text_input(text_es.TRACKED_QUERY_FIELD, help=text_es.TRACKED_QUERY_HINT)
-        kind_label = st.radio(text_es.TRACKED_KIND_LABEL, list(_KIND_BY_LABEL), horizontal=True)
-        if st.form_submit_button(text_es.TRACKED_ADD_BUTTON):
+        st.markdown(f"**{t.TRACKED_ADD_HEADER}**")
+        query = st.text_input(t.TRACKED_QUERY_FIELD, help=t.TRACKED_QUERY_HINT)
+        kinds = _kind_by_label()
+        kind_label = st.radio(t.TRACKED_KIND_LABEL, list(kinds), horizontal=True)
+        if st.form_submit_button(t.TRACKED_ADD_BUTTON):
             query = query.strip()
             if query:
-                item, status = tracked.add_item(session, query, kind=_KIND_BY_LABEL[kind_label])
+                item, status = tracked.add_item(session, query, kind=kinds[kind_label])
                 session.commit()
                 if status == tracked.ALREADY_ACTIVE:
-                    _flash(st.session_state, text_es.TRACKED_ALREADY, kind="info")
+                    _flash(st.session_state, t.TRACKED_ALREADY, kind="info")
                 else:
-                    _flash(st.session_state, text_es.TRACKED_ADDED)
+                    _flash(st.session_state, t.TRACKED_ADDED)
                     st.session_state["quick-search-item"] = item.id
                 st.rerun()
 
 
 def render() -> None:
-    radar.page_title(text_es.NAV_SETTINGS)
+    radar.page_title(t.NAV_SETTINGS)
     flash = _pop_flash(st.session_state)
     if flash is not None:
         kind, text = flash
         (st.info if kind == "info" else st.success)(text)
+    read_only = demo.is_demo()
+    if read_only:
+        st.caption(t.DEMO_ADMIN_READ_ONLY)
     with data.open_session() as session:
-        _render_quick_search(session)
+        if read_only:
+            st.subheader(t.QUICK_SEARCH_HEADER)
+            st.markdown(f"*{t.DEMO_QUICK_SEARCH_OFF}*")
+        else:
+            _render_quick_search(session)
         st.divider()
-        _render_services(session)
+        _render_services(session, read_only)
         st.divider()
-        _render_tracked(session)
+        _render_tracked(session, read_only)

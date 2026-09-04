@@ -15,7 +15,7 @@ from html import escape
 
 import streamlit as st
 
-from repuestos_radar.dashboard import text_es
+from repuestos_radar.dashboard.text import t
 
 GROUND = "#0d2a2a"
 GROUND_2 = "#123632"
@@ -125,7 +125,7 @@ def login_panel_html(status_line: str) -> str:
     return (
         f"<style>{css}</style>"
         f'<div class="rr-login">{_login_svg()}'
-        f'<div class="rr-login-brand">{escape(text_es.APP_TITLE)}</div>'
+        f'<div class="rr-login-brand">{escape(t.APP_TITLE)}</div>'
         f'<div class="rr-login-status">{escape(status_line)}</div>'
         f"</div>"
     )

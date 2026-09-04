@@ -120,9 +120,10 @@ def test_service_line_escapes_a_dollar_typed_into_the_label():
 
 def test_kind_radio_labels_map_to_kinds_with_part_first():
     # The radio shows the labels in dict order and defaults to the first one.
-    assert list(admin._KIND_BY_LABEL) == [text_es.TRACKED_KIND_PART, text_es.TRACKED_KIND_PHONE]
-    assert admin._KIND_BY_LABEL[text_es.TRACKED_KIND_PART] == "part"
-    assert admin._KIND_BY_LABEL[text_es.TRACKED_KIND_PHONE] == "phone"
+    kinds = admin._kind_by_label()
+    assert list(kinds) == [text_es.TRACKED_KIND_PART, text_es.TRACKED_KIND_PHONE]
+    assert kinds[text_es.TRACKED_KIND_PART] == "part"
+    assert kinds[text_es.TRACKED_KIND_PHONE] == "phone"
 
 
 def test_tracked_line_tags_phones_only():

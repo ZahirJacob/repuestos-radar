@@ -29,8 +29,8 @@ leave at current prices.
 3. **Streamlit dashboard.** A Spanish-first dashboard, behind one shared password for the whole
    app, shows current prices, history, and margins. Its admin page manages the watchlist and the
    repair price list — tracked search items live in a database table, so the client adds or
-   removes items without touching code. An ES/EN toggle and a password-free public demo are the
-   committed post-M4 follow-up.
+   removes items without touching code. A password-free **public demo** with generated sample
+   data and an ES/EN toggle runs from the same code (see [Public demo](#public-demo)).
 
 ## Data sources and trust policy
 
@@ -118,8 +118,8 @@ Celuphone (Woo) ────┘                             source, date)       
   password — part cards, per-tier store ranking with straight-line distances, fair prices,
   margins, quick search on demand, and an admin page for repair prices and tracked parts.
 - **M5 — Alerts and forecasting**: price-drop alerts and simple trend forecasts.
-- **Post-M4 — Public demo**: a portfolio-friendly deployment with sample data, no password, and an
-  ES/EN toggle.
+- **Post-M4 — Public demo** *(shipped)*: a portfolio-friendly deployment with sample data, no
+  password, and an ES/EN toggle.
 
 ## Dev setup
 
@@ -225,6 +225,27 @@ Stored listings keep the label they got on the day they were fetched. `reclassif
 current filter over that history (every item, or the ids given) and rewrites every label the
 current rules disagree with, so a new part word or an item switched to `phone` also cleans up the
 days already stored; `--dry-run` only reports the counts.
+
+## Public demo
+
+**<https://repuestos-radar-demo.streamlit.app>** — the same dashboard with no password, an ES/EN
+toggle, and generated sample data, so anyone can click around without seeing the client's numbers.
+
+- Entry point `demo_app.py` (the client's app keeps `streamlit_app.py`). It sets
+  `REPUESTOS_RADAR_DEMO=1` before the app starts, so the demo deployment needs **no secrets**.
+- In demo mode the dashboard never reads `DATABASE_URL`. It works on a throw-away SQLite file
+  seeded by `repuestos_radar.dashboard.demo` with thirty days of made-up prices for five items
+  (four parts, one phone) across the real stores of the registry — their names and distances are
+  real, the prices are not, and a banner says so. The sample is deterministic and always ends on
+  the current day; one tier carries a deliberate outlier and one a low-confidence title so the
+  warnings show. Distances are measured from a public spot in central Rosario, not the shop.
+- The login is skipped, the Settings page is read-only (lists only, no forms) and the quick search
+  is off — it would hit the real stores.
+- Language: the ES/EN control in the banner, or `?lang=en` in the URL for a shared link. Spanish
+  is the default; the client's app has no toggle.
+
+Run it locally with `uv run streamlit run demo_app.py`. Deploying it is one more Streamlit
+Community Cloud app on this repository with `demo_app.py` as the main file and no secrets.
 
 ## Daily report and repair price list
 
