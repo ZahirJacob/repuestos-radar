@@ -421,10 +421,11 @@ def test_part_item_still_softens_singular_parlante_and_auricular() -> None:
     ],
 )
 def test_tpu_case_is_an_accessory_for_phone_and_part_items(title: str) -> None:
-    assert classify("iphone 13", title, kind="phone").relevance is Relevance.REJECT
-    assert classify("iphone 13", title, kind="phone").reason == "accessory term: tpu"
+    as_phone = classify("iphone 13", title, kind="phone")
+    assert as_phone.relevance is Relevance.REJECT
+    assert as_phone.reason == "accessory term: tpu"
     # For a part item it behaves exactly like "funda" does today (softened to
     # LOW_CONFIDENCE because the model words are present).
     as_part = classify("bateria iphone 13", title)
-    assert as_part.relevance is classify("bateria iphone 13", "Funda Iphone 13").relevance
+    assert as_part.relevance is Relevance.LOW_CONFIDENCE
     assert as_part.reason == "accessory term tpu but part word present"
